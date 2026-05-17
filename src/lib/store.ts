@@ -219,7 +219,7 @@ export const useAppStore = create<AppState>()(
       setActiveView: (view) => set({ activeView: view }),
       
       // Theme
-      theme: 'dark',
+      theme: 'light',
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
       
       // Sidebar

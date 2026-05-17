@@ -32,6 +32,9 @@ export default function Home() {
 
   // Load mock data on mount
   useEffect(() => {
+    // Force light theme as requested
+    useAppStore.setState({ theme: 'light' });
+    
     setTasks(mockTasks);
     setLeads(mockLeads);
     setEvents(mockEvents);
@@ -78,7 +81,7 @@ export default function Home() {
 
   return (
     <div className={isDark ? 'dark' : 'light'} style={{
-      background: isDark ? '#0a0a0f' : '#f8f7ff',
+      background: isDark ? '#0a0a0f' : '#ffffff',
       color: isDark ? '#e4e4e7' : '#1e1b2e',
       minHeight: '100vh',
     }}>
