@@ -63,8 +63,8 @@ export default function QuickAddModal() {
             {type === 'task' && (
               <div className="flex gap-2 mb-4">
                 {(['low', 'medium', 'high', 'urgent'] as const).map(p => (
-                  <button key={p} onClick={() => setPriority(p)} className={`badge badge-${p} cursor-pointer transition-all ${priority === p ? 'ring-2 ring-offset-1' : 'opacity-50'}`}
-                    style={{ ringColor: 'rgba(139,92,246,0.5)', ringOffsetColor: isDark ? '#12121a' : '#fff' }}>
+                  <button key={p} onClick={() => setPriority(p)} className={`badge badge-${p} cursor-pointer transition-all ${priority === p ? '' : 'opacity-50'}`}
+                    style={{ boxShadow: priority === p ? `0 0 0 1px ${isDark ? '#12121a' : '#fff'}, 0 0 0 3px rgba(139,92,246,0.5)` : 'none' }}>
                     {p}
                   </button>
                 ))}
