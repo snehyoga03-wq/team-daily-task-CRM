@@ -98,7 +98,7 @@ export default function AnalyticsView() {
             <LineChart data={conversionData}>
               <XAxis dataKey="week" tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v}%`, 'Rate']} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`${v}%`, 'Rate']} />
               <Line type="monotone" dataKey="rate" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -112,7 +112,7 @@ export default function AnalyticsView() {
           <BarChart data={monthlyRevenue}>
             <XAxis dataKey="month" tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`₹${v.toLocaleString()}`, '']} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`₹${v.toLocaleString()}`, '']} />
             <Bar dataKey="revenue" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
             <Bar dataKey="target" fill={isDark ? '#2a2a3a' : '#e5e2f0'} radius={[6, 6, 0, 0]} />
           </BarChart>

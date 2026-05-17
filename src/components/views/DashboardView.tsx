@@ -90,7 +90,7 @@ export default function DashboardView() {
             <BarChart data={monthlyRevenue}>
               <XAxis dataKey="month" tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
-              <Tooltip contentStyle={{ background: isDark ? '#1a1a25' : '#fff', border: 'none', borderRadius: 12, fontSize: 12 }} formatter={(v: number) => [`₹${v.toLocaleString()}`, '']} />
+              <Tooltip contentStyle={{ background: isDark ? '#1a1a25' : '#fff', border: 'none', borderRadius: 12, fontSize: 12 }} formatter={(v: any) => [`₹${v.toLocaleString()}`, '']} />
               <Bar dataKey="revenue" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
               <Bar dataKey="target" fill={isDark ? '#2a2a3a' : '#e5e2f0'} radius={[6, 6, 0, 0]} />
             </BarChart>
