@@ -22,12 +22,13 @@ import NotificationsView from '@/components/views/NotificationsView';
 import SettingsView from '@/components/views/SettingsView';
 import AIView from '@/components/views/AIView';
 import LeadsView from '@/components/views/LeadsView';
+import AdminView from '@/components/views/AdminView';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
   const {
     theme, activeView, sidebarCollapsed, dataLoaded,
-    setTasks, setLeads, setEvents, setTeamMembers, setChannels, setNotifications,
+    setTasks, setLeads, setEvents, setTeamMembers, setTeams, setChannels, setNotifications,
     setDataLoaded,
   } = useAppStore();
 
@@ -49,12 +50,13 @@ export default function Home() {
 
     async function loadData() {
       try {
-        const [tasks, leads, events, members, channels] = await Promise.allSettled([
+        const [tasks, leads, events, members, channels, teamsData] = await Promise.allSettled([
           dataService.fetchTasks(),
           dataService.fetchLeads(),
           dataService.fetchEvents(),
           dataService.fetchTeamMembers(),
           dataService.fetchChannels(),
+          dataService.fetchTeams(),
         ]);
 
         if (tasks.status === 'fulfilled') setTasks(tasks.value);
@@ -62,6 +64,7 @@ export default function Home() {
         if (events.status === 'fulfilled') setEvents(events.value);
         if (members.status === 'fulfilled') setTeamMembers(members.value);
         if (channels.status === 'fulfilled') setChannels(channels.value as any);
+        if (teamsData.status === 'fulfilled') setTeams(teamsData.value);
 
         // Load notifications for current user
         try {
@@ -92,7 +95,7 @@ export default function Home() {
       tasksSub.unsubscribe();
       leadsSub.unsubscribe();
     };
-  }, [currentUser, setTasks, setLeads, setEvents, setTeamMembers, setChannels, setNotifications, setDataLoaded]);
+  }, [currentUser, setTasks, setLeads, setEvents, setTeamMembers, setTeams, setChannels, setNotifications, setDataLoaded]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -146,6 +149,7 @@ export default function Home() {
       case 'notifications': return <NotificationsView />;
       case 'settings': return <SettingsView />;
       case 'ai': return <AIView />;
+      case 'admin': return <AdminView />;
       default: return <DashboardView />;
     }
   };

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DbTask, DbSubtask, DbLead, DbCalendarEvent, DbUser, DbChannel, DbMessage, DbNotification, DbAttendance } from './supabase';
+import { DbTask, DbSubtask, DbLead, DbCalendarEvent, DbUser, DbChannel, DbMessage, DbNotification, DbAttendance, DbTeam } from './supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────
 export type View = 
@@ -16,7 +16,8 @@ export type View =
   | 'chat' 
   | 'notifications' 
   | 'settings'
-  | 'ai';
+  | 'ai'
+  | 'admin';
 
 export type TaskView = 'list' | 'kanban' | 'calendar' | 'timeline';
 export type Theme = 'dark' | 'light';
@@ -99,6 +100,10 @@ interface AppState {
   teamMembers: TeamMember[];
   setTeamMembers: (members: TeamMember[]) => void;
   
+  // Teams (from Supabase)
+  teams: DbTeam[];
+  setTeams: (teams: DbTeam[]) => void;
+  
   // Focus
   isFocusActive: boolean;
   currentFocusSession: FocusSession | null;
@@ -136,6 +141,10 @@ interface AppState {
   // Modal
   modalOpen: string | null;
   setModalOpen: (modal: string | null) => void;
+
+  // Selected Task
+  selectedTaskId: string | null;
+  setSelectedTaskId: (id: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -187,6 +196,10 @@ export const useAppStore = create<AppState>()(
       teamMembers: [],
       setTeamMembers: (members) => set({ teamMembers: members }),
       
+      // Teams
+      teams: [],
+      setTeams: (teams) => set({ teams }),
+      
       // Focus
       isFocusActive: false,
       currentFocusSession: null,
@@ -228,6 +241,10 @@ export const useAppStore = create<AppState>()(
       // Modal
       modalOpen: null,
       setModalOpen: (modal) => set({ modalOpen: modal }),
+
+      // Selected Task
+      selectedTaskId: null,
+      setSelectedTaskId: (id) => set({ selectedTaskId: id }),
     }),
     {
       name: 'snehyoga-crm-store',

@@ -48,6 +48,11 @@ export interface DbTask {
   creator_id: string | null;
   team_id: string | null;
   due_date: string | null;
+  due_time?: string | null;
+  reminder?: string | null;
+  duration_minutes?: number | null;
+  is_recurring?: boolean;
+  recurrence_pattern?: string | null;
   tags: string[];
   estimated_hours: number | null;
   actual_hours: number | null;

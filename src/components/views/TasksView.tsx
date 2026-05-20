@@ -3,6 +3,7 @@
 import { useAppStore, Task } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import TaskDetailModal from '@/components/modals/TaskDetailModal';
 
 const statusConfig = {
   todo: { label: 'To Do', color: '#8b5cf6', icon: '📋' },
@@ -14,7 +15,7 @@ const statusConfig = {
 const priorityColors = { urgent: '#f43f5e', high: '#f97316', medium: '#f59e0b', low: '#10b981' };
 
 export default function TasksView() {
-  const { theme, tasks, taskView, setTaskView, updateTask, setQuickAddOpen } = useAppStore();
+  const { theme, tasks, taskView, setTaskView, updateTask, setQuickAddOpen, setSelectedTaskId } = useAppStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
@@ -97,7 +98,8 @@ export default function TasksView() {
                         exit={{ opacity: 0, scale: 0.95 }}
                         draggable
                         onDragStart={() => handleDragStart(task.id)}
-                        className="task-card"
+                        onClick={() => setSelectedTaskId(task.id)}
+                        className="task-card cursor-pointer"
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <span className="text-sm font-medium leading-snug" style={{ color: textColor }}>{task.title}</span>
@@ -143,7 +145,7 @@ export default function TasksView() {
             <span>Task</span><span>Status</span><span>Priority</span><span>Assignee</span><span>Due</span>
           </div>
           {filteredTasks.map(task => (
-            <motion.div key={task.id} whileHover={{ background: isDark ? 'rgba(139,92,246,0.04)' : 'rgba(139,92,246,0.03)' }} className="grid grid-cols-[1fr,100px,100px,120px,80px] gap-4 px-5 py-3 border-b items-center cursor-pointer" style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
+            <motion.div key={task.id} onClick={() => setSelectedTaskId(task.id)} whileHover={{ background: isDark ? 'rgba(139,92,246,0.04)' : 'rgba(139,92,246,0.03)' }} className="grid grid-cols-[1fr,100px,100px,120px,80px] gap-4 px-5 py-3 border-b items-center cursor-pointer" style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
               <span className="text-sm" style={{ color: textColor }}>{task.title}</span>
               <span className="text-[10px] px-2 py-1 rounded-full text-center font-medium" style={{ background: `${statusConfig[task.status].color}15`, color: statusConfig[task.status].color }}>{statusConfig[task.status].label}</span>
               <span className={`badge badge-${task.priority} text-center`}>{task.priority}</span>
@@ -153,6 +155,9 @@ export default function TasksView() {
           ))}
         </div>
       )}
+
+      {/* Task Detail & Edit Modal */}
+      <TaskDetailModal />
     </div>
   );
 }

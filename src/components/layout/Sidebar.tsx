@@ -1,6 +1,7 @@
 'use client';
 
 import { useAppStore, View } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems: { id: View; label: string; icon: string }[] = [
@@ -20,7 +21,16 @@ const navItems: { id: View; label: string; icon: string }[] = [
 
 export default function Sidebar() {
   const { activeView, setActiveView, sidebarCollapsed, toggleSidebar, theme, notifications } = useAppStore();
+  const { currentUser } = useAuthStore();
+  const isAdmin = currentUser?.role === 'admin';
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  // Build nav items dynamically — insert Admin before Settings if user is admin
+  const dynamicNavItems: { id: View; label: string; icon: string }[] = [
+    ...navItems.filter(item => item.id !== 'settings'),
+    ...(isAdmin ? [{ id: 'admin' as View, label: 'Admin Panel', icon: '🛡️' }] : []),
+    ...navItems.filter(item => item.id === 'settings'),
+  ];
 
   return (
     <motion.aside
@@ -55,7 +65,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
-        {navItems.map((item) => (
+        {dynamicNavItems.map((item) => (
           <motion.button
             key={item.id}
             whileHover={{ x: 2 }}

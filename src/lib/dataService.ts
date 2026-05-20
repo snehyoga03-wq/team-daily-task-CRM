@@ -71,6 +71,42 @@ export async function updateSubtask(id: string, updates: Partial<DbSubtask>) {
   return data as DbSubtask;
 }
 
+export async function deleteSubtask(id: string) {
+  const { error } = await supabase
+    .from('subtasks')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchTaskComments(taskId: string) {
+  const { data, error } = await supabase
+    .from('task_comments')
+    .select('*, user:users(*)')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function createTaskComment(comment: { task_id: string; user_id: string; content: string }) {
+  const { data, error } = await supabase
+    .from('task_comments')
+    .insert(comment)
+    .select('*, user:users(*)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteTaskComment(id: string) {
+  const { error } = await supabase
+    .from('task_comments')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ─── CRM LEADS ─────────────────────────────────────────────────────
 
 export async function fetchLeads() {
@@ -163,6 +199,58 @@ export async function fetchTeamMembers() {
   return data as DbUser[];
 }
 
+export async function fetchAllUsers() {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .order('full_name');
+  if (error) throw error;
+  return data as DbUser[];
+}
+
+export async function createUser(user: Partial<DbUser>) {
+  const { data, error } = await supabase
+    .from('users')
+    .insert(user)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbUser;
+}
+
+export async function updateUser(id: string, updates: Partial<DbUser>) {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbUser;
+}
+
+export async function deactivateUser(id: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ is_active: false })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbUser;
+}
+
+export async function reactivateUser(id: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ is_active: true })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbUser;
+}
+
 export async function fetchTeams() {
   const { data, error } = await supabase
     .from('teams')
@@ -170,6 +258,35 @@ export async function fetchTeams() {
     .order('name');
   if (error) throw error;
   return data as DbTeam[];
+}
+
+export async function createTeam(team: Partial<DbTeam>) {
+  const { data, error } = await supabase
+    .from('teams')
+    .insert(team)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbTeam;
+}
+
+export async function updateTeam(id: string, updates: Partial<DbTeam>) {
+  const { data, error } = await supabase
+    .from('teams')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbTeam;
+}
+
+export async function deleteTeam(id: string) {
+  const { error } = await supabase
+    .from('teams')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
 }
 
 // ─── CHANNELS & MESSAGES ───────────────────────────────────────────

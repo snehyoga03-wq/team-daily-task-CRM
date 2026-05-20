@@ -2,12 +2,14 @@
 
 import { useAppStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
+import { useIsAdmin } from '@/lib/useAdmin';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
 export default function SettingsView() {
   const { theme, toggleTheme } = useAppStore();
   const { currentUser, logout } = useAuthStore();
+  const isAdmin = useIsAdmin();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
@@ -58,6 +60,7 @@ export default function SettingsView() {
       items: [
         { label: 'Workspace Name', description: 'SnehYoga Team', action: <button className="text-xs font-medium" style={{ color: '#8b5cf6' }}>Edit</button> },
         { label: 'Data Export', description: 'Export all workspace data', action: <button className="text-xs font-medium" style={{ color: '#8b5cf6' }}>Export</button> },
+        ...(isAdmin ? [{ label: 'Admin Panel', description: 'Manage teams, users & workspace', action: <motion.button whileTap={{ scale: 0.95 }} onClick={() => useAppStore.getState().setActiveView('admin')} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' }}>🛡️ Open</motion.button> }] : []),
       ],
     },
   ];
