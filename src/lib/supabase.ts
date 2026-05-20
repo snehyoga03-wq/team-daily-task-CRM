@@ -1,9 +1,24 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+let _supabase: SupabaseClient | null = null;
+
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    if (!_supabase) {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error(
+          'Supabase URL and Anon Key must be defined. ' +
+          'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment.'
+        );
+      }
+      _supabase = createClient(supabaseUrl, supabaseAnonKey);
+    }
+    return (_supabase as any)[prop];
+  },
+});
 
 // ─── Database Types ─────────────────────────────────────────────────
 
