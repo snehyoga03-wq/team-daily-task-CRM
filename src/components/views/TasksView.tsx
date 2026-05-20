@@ -110,22 +110,21 @@ export default function TasksView() {
                             ))}
                           </div>
                         )}
-                        {task.subtasks.length > 0 && (
+                        {(task.subtasks || []).length > 0 && (
                           <div className="mb-2">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-1.5 rounded-full" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0' }}>
-                                <div className="h-full rounded-full" style={{ width: `${(task.subtasks.filter(s => s.isCompleted).length / task.subtasks.length) * 100}%`, background: config.color }} />
+                                <div className="h-full rounded-full" style={{ width: `${((task.subtasks || []).filter(s => s.is_completed).length / (task.subtasks || []).length) * 100}%`, background: config.color }} />
                               </div>
-                              <span className="text-[10px]" style={{ color: mutedColor }}>{task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}</span>
+                              <span className="text-[10px]" style={{ color: mutedColor }}>{(task.subtasks || []).filter(s => s.is_completed).length}/{(task.subtasks || []).length}</span>
                             </div>
                           </div>
                         )}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            {task.assignee && <span className="text-sm">{task.assignee.avatar}</span>}
-                            {task.dueDate && <span className="text-[10px]" style={{ color: mutedColor }}>📅 {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                            {task.assignee && <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #9333ea, #06b6d4)' }}>{task.assignee.full_name?.charAt(0)}</span>}
+                            {task.due_date && <span className="text-[10px]" style={{ color: mutedColor }}>📅 {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                           </div>
-                          {task.comments.length > 0 && <span className="text-[10px]" style={{ color: mutedColor }}>💬 {task.comments.length}</span>}
                         </div>
                       </motion.div>
                     ))}
@@ -148,8 +147,8 @@ export default function TasksView() {
               <span className="text-sm" style={{ color: textColor }}>{task.title}</span>
               <span className="text-[10px] px-2 py-1 rounded-full text-center font-medium" style={{ background: `${statusConfig[task.status].color}15`, color: statusConfig[task.status].color }}>{statusConfig[task.status].label}</span>
               <span className={`badge badge-${task.priority} text-center`}>{task.priority}</span>
-              <span className="text-xs flex items-center gap-1" style={{ color: mutedColor }}>{task.assignee?.avatar} {task.assignee?.name.split(' ')[0]}</span>
-              <span className="text-[11px]" style={{ color: mutedColor }}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
+              <span className="text-xs flex items-center gap-1" style={{ color: mutedColor }}>{task.assignee ? task.assignee.full_name?.split(' ')[0] : '—'}</span>
+              <span className="text-[11px]" style={{ color: mutedColor }}>{task.due_date ? new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
             </motion.div>
           ))}
         </div>

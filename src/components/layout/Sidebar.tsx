@@ -20,7 +20,7 @@ const navItems: { id: View; label: string; icon: string }[] = [
 
 export default function Sidebar() {
   const { activeView, setActiveView, sidebarCollapsed, toggleSidebar, theme, notifications } = useAppStore();
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
     <motion.aside

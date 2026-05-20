@@ -1,30 +1,34 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
 export default function ChatView() {
   const { theme, channels, activeChannel, setActiveChannel, messages, addMessage } = useAppStore();
+  const { currentUser } = useAuthStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
   const [newMessage, setNewMessage] = useState('');
 
   const currentChannel = channels.find(c => c.id === activeChannel) || channels[0];
-  const channelMessages = messages.filter(m => m.channelId === (activeChannel || 'ch1'));
+  const channelMessages = messages.filter(m => m.channel_id === (activeChannel || channels[0]?.id));
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
+  const sendMsg = () => {
+    if (!newMessage.trim() || !currentUser) return;
     addMessage({
       id: `m${Date.now()}`,
-      channelId: activeChannel || 'ch1',
-      userId: '1',
-      userName: 'Sneha Sharma',
-      userAvatar: '🧘‍♀️',
+      channel_id: activeChannel || channels[0]?.id || '',
+      user_id: currentUser.id,
+      userName: currentUser.full_name,
+      userAvatar: currentUser.full_name?.charAt(0) || '?',
       content: newMessage,
+      attachments: [],
       reactions: {},
-      createdAt: new Date().toISOString(),
+      reply_to: null,
+      created_at: new Date().toISOString(),
     });
     setNewMessage('');
   };
@@ -48,7 +52,7 @@ export default function ChatView() {
                   <p className="text-sm font-medium truncate">{ch.name}</p>
                   {ch.lastMessage && <p className="text-[10px] truncate" style={{ color: mutedColor }}>{ch.lastMessage}</p>}
                 </div>
-                {ch.unreadCount > 0 && (
+                {(ch.unreadCount || 0) > 0 && (
                   <span className="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center">{ch.unreadCount}</span>
                 )}
               </motion.button>
@@ -75,8 +79,8 @@ export default function ChatView() {
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0' }}>{msg.userAvatar}</div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold" style={{ color: textColor }}>{msg.userName}</span>
-                  <span className="text-[10px]" style={{ color: mutedColor }}>{new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-sm font-semibold" style={{ color: textColor }}>{msg.userName || 'Team'}</span>
+                  <span className="text-[10px]" style={{ color: mutedColor }}>{new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <p className="text-sm mt-1" style={{ color: isDark ? '#d4d4d8' : '#3f3f46' }}>{msg.content}</p>
                 {Object.keys(msg.reactions).length > 0 && (
@@ -97,11 +101,11 @@ export default function ChatView() {
             <input
               value={newMessage}
               onChange={e => setNewMessage(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendMessage()}
+              onKeyDown={e => e.key === 'Enter' && sendMsg()}
               placeholder={`Message #${currentChannel?.name || 'general'}`}
               className="input-field flex-1"
             />
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={sendMessage} className="btn-primary">Send</motion.button>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={sendMsg} className="btn-primary">Send</motion.button>
           </div>
         </div>
       </div>

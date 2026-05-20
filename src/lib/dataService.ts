@@ -1,0 +1,307 @@
+import { supabase, DbTask, DbSubtask, DbLead, DbCalendarEvent, DbChannel, DbMessage, DbNotification, DbUser, DbAttendance, DbTeam } from './supabase';
+
+// ─── TASKS ─────────────────────────────────────────────────────────
+
+export async function fetchTasks() {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as DbTask[];
+}
+
+export async function fetchSubtasks(taskId: string) {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .select('*')
+    .eq('task_id', taskId)
+    .order('order_index');
+  if (error) throw error;
+  return data as DbSubtask[];
+}
+
+export async function createTask(task: Partial<DbTask>) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(task)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbTask;
+}
+
+export async function updateTask(id: string, updates: Partial<DbTask>) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbTask;
+}
+
+export async function deleteTask(id: string) {
+  const { error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function createSubtask(subtask: Partial<DbSubtask>) {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .insert(subtask)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbSubtask;
+}
+
+export async function updateSubtask(id: string, updates: Partial<DbSubtask>) {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbSubtask;
+}
+
+// ─── CRM LEADS ─────────────────────────────────────────────────────
+
+export async function fetchLeads() {
+  const { data, error } = await supabase
+    .from('crm_leads')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as DbLead[];
+}
+
+export async function createLead(lead: Partial<DbLead>) {
+  const { data, error } = await supabase
+    .from('crm_leads')
+    .insert(lead)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbLead;
+}
+
+export async function updateLead(id: string, updates: Partial<DbLead>) {
+  const { data, error } = await supabase
+    .from('crm_leads')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbLead;
+}
+
+export async function deleteLead(id: string) {
+  const { error } = await supabase
+    .from('crm_leads')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ─── CALENDAR EVENTS ───────────────────────────────────────────────
+
+export async function fetchEvents() {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .order('start_time', { ascending: true });
+  if (error) throw error;
+  return data as DbCalendarEvent[];
+}
+
+export async function createEvent(event: Partial<DbCalendarEvent>) {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .insert(event)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbCalendarEvent;
+}
+
+export async function updateEvent(id: string, updates: Partial<DbCalendarEvent>) {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbCalendarEvent;
+}
+
+export async function deleteEvent(id: string) {
+  const { error } = await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ─── TEAM / USERS ──────────────────────────────────────────────────
+
+export async function fetchTeamMembers() {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('is_active', true)
+    .order('full_name');
+  if (error) throw error;
+  return data as DbUser[];
+}
+
+export async function fetchTeams() {
+  const { data, error } = await supabase
+    .from('teams')
+    .select('*')
+    .order('name');
+  if (error) throw error;
+  return data as DbTeam[];
+}
+
+// ─── CHANNELS & MESSAGES ───────────────────────────────────────────
+
+export async function fetchChannels() {
+  const { data, error } = await supabase
+    .from('channels')
+    .select('*')
+    .order('name');
+  if (error) throw error;
+  return data as DbChannel[];
+}
+
+export async function fetchMessages(channelId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('channel_id', channelId)
+    .order('created_at', { ascending: true })
+    .limit(100);
+  if (error) throw error;
+  return data as DbMessage[];
+}
+
+export async function sendMessage(message: Partial<DbMessage>) {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert(message)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbMessage;
+}
+
+// ─── NOTIFICATIONS ─────────────────────────────────────────────────
+
+export async function fetchNotifications(userId: string) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return data as DbNotification[];
+}
+
+export async function markNotificationRead(id: string) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function createNotification(notification: Partial<DbNotification>) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert(notification)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbNotification;
+}
+
+// ─── ATTENDANCE ────────────────────────────────────────────────────
+
+export async function fetchAttendance(date?: string) {
+  let query = supabase.from('attendance').select('*');
+  if (date) {
+    query = query.eq('date', date);
+  }
+  const { data, error } = await query.order('date', { ascending: false });
+  if (error) throw error;
+  return data as DbAttendance[];
+}
+
+export async function checkIn(userId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('attendance')
+    .upsert({
+      user_id: userId,
+      date: today,
+      check_in: new Date().toISOString(),
+      status: 'present',
+    }, { onConflict: 'user_id,date' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbAttendance;
+}
+
+export async function checkOut(userId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('attendance')
+    .update({ check_out: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('date', today)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbAttendance;
+}
+
+// ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────────
+
+export function subscribeToTasks(callback: (payload: any) => void) {
+  return supabase
+    .channel('tasks-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, callback)
+    .subscribe();
+}
+
+export function subscribeToMessages(channelId: string, callback: (payload: any) => void) {
+  return supabase
+    .channel(`messages-${channelId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` }, callback)
+    .subscribe();
+}
+
+export function subscribeToLeads(callback: (payload: any) => void) {
+  return supabase
+    .channel('leads-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'crm_leads' }, callback)
+    .subscribe();
+}
+
+export function subscribeToNotifications(userId: string, callback: (payload: any) => void) {
+  return supabase
+    .channel(`notifications-${userId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, callback)
+    .subscribe();
+}

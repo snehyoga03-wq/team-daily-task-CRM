@@ -63,7 +63,7 @@ export default function LeadsView() {
             <span className="text-[10px] px-2 py-1 rounded-full font-medium text-center" style={{ background: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}>{statusLabels[lead.status]}</span>
             <span className="text-[11px]" style={{ color: mutedColor }}>{lead.phone || '—'}</span>
             <span className="text-[11px]" style={{ color: mutedColor }}>{lead.source || '—'}</span>
-            <span className="text-[11px]" style={{ color: lead.whatsappStatus === 'Replied' ? '#10b981' : mutedColor }}>{lead.whatsappStatus || '—'}</span>
+            <span className="text-[11px]" style={{ color: lead.whatsapp_status === 'Replied' ? '#10b981' : mutedColor }}>{lead.whatsapp_status || '—'}</span>
             <span className="text-xs font-semibold" style={{ color: '#10b981' }}>₹{lead.value.toLocaleString()}</span>
           </motion.div>
         ))}

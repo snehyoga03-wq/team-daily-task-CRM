@@ -2,21 +2,18 @@
 
 import { useAppStore } from '@/lib/store';
 import { motion } from 'framer-motion';
-import { mockTeamMembers, mockEvents } from '@/lib/mockData';
 
 export default function RightPanel() {
-  const { theme, rightPanelOpen, notifications } = useAppStore();
+  const { theme, rightPanelOpen, notifications, events, teamMembers } = useAppStore();
   const isDark = theme === 'dark';
 
   if (!rightPanelOpen) return null;
 
-  const upcomingEvents = mockEvents.slice(0, 3);
+  const upcomingEvents = events.slice(0, 3);
   const recentActivity = [
-    { id: 1, text: 'Arjun closed lead "Rohit Verma"', time: '2m ago', icon: '🎯' },
-    { id: 2, text: 'Priya published new Instagram reel', time: '15m ago', icon: '📱' },
-    { id: 3, text: 'Task "Sales Report" completed', time: '1h ago', icon: '✅' },
-    { id: 4, text: 'New lead from webinar signup', time: '2h ago', icon: '💼' },
-    { id: 5, text: 'Kavya resolved 5 support tickets', time: '3h ago', icon: '🌸' },
+    { id: 1, text: 'New task created', time: 'Recently', icon: '✅' },
+    { id: 2, text: 'Lead pipeline updated', time: 'Recently', icon: '💼' },
+    { id: 3, text: 'Team member joined', time: 'Recently', icon: '👥' },
   ];
 
   return (
@@ -51,12 +48,15 @@ export default function RightPanel() {
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: isDark ? '#71717a' : '#6b6880' }}>🔔 Reminders</h3>
           <div className="space-y-2">
-            {notifications.filter(n => !n.isRead).slice(0, 3).map(n => (
+            {notifications.filter(n => !n.is_read).slice(0, 3).map(n => (
               <div key={n.id} className="pipeline-card p-3">
                 <p className="text-xs font-medium" style={{ color: isDark ? '#e4e4e7' : '#1e1b2e' }}>{n.title}</p>
                 <p className="text-[11px] mt-1" style={{ color: isDark ? '#71717a' : '#6b6880' }}>{n.message}</p>
               </div>
             ))}
+            {notifications.filter(n => !n.is_read).length === 0 && (
+              <p className="text-xs" style={{ color: isDark ? '#71717a' : '#6b6880' }}>No unread reminders</p>
+            )}
           </div>
         </div>
 
@@ -70,11 +70,14 @@ export default function RightPanel() {
                 <div>
                   <p className="text-xs font-medium" style={{ color: isDark ? '#e4e4e7' : '#1e1b2e' }}>{e.title}</p>
                   <p className="text-[11px]" style={{ color: isDark ? '#71717a' : '#6b6880' }}>
-                    {new Date(e.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(e.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>
             ))}
+            {upcomingEvents.length === 0 && (
+              <p className="text-xs" style={{ color: isDark ? '#71717a' : '#6b6880' }}>No upcoming events</p>
+            )}
           </div>
         </div>
 
@@ -94,18 +97,20 @@ export default function RightPanel() {
           </div>
         </div>
 
-        {/* Team Online */}
+        {/* Team Members */}
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: isDark ? '#71717a' : '#6b6880' }}>👥 Team Online</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: isDark ? '#71717a' : '#6b6880' }}>👥 Team ({teamMembers.length})</h3>
           <div className="flex flex-wrap gap-2">
-            {mockTeamMembers.filter(m => m.status === 'online').map(m => (
+            {teamMembers.slice(0, 6).map(m => (
               <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs" style={{
                 background: isDark ? 'rgba(26,26,37,0.6)' : 'rgba(255,255,255,0.6)',
                 border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}`,
                 color: isDark ? '#e4e4e7' : '#1e1b2e',
               }}>
-                <span>{m.avatar}</span>
-                <span>{m.name.split(' ')[0]}</span>
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #9333ea, #06b6d4)' }}>
+                  {m.full_name?.charAt(0) || '?'}
+                </span>
+                <span>{m.full_name?.split(' ')[0]}</span>
                 <span className="w-2 h-2 rounded-full bg-green-400 pulse-dot" />
               </div>
             ))}

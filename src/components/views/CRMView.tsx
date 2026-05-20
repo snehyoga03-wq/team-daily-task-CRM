@@ -97,9 +97,9 @@ export default function CRMView() {
                       {lead.phone && <p className="text-[11px] mb-1" style={{ color: mutedColor }}>📱 {lead.phone}</p>}
                       <div className="flex items-center justify-between mt-2">
                         {lead.source && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: mutedColor }}>{lead.source}</span>}
-                        {lead.whatsappStatus && (
-                          <span className="text-[10px] flex items-center gap-1" style={{ color: lead.whatsappStatus === 'Replied' ? '#10b981' : mutedColor }}>
-                            💬 {lead.whatsappStatus}
+                        {lead.whatsapp_status && (
+                          <span className="text-[10px] flex items-center gap-1" style={{ color: lead.whatsapp_status === 'Replied' ? '#10b981' : mutedColor }}>
+                            💬 {lead.whatsapp_status}
                           </span>
                         )}
                       </div>

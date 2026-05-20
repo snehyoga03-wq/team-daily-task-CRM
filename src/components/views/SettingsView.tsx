@@ -1,16 +1,35 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
 export default function SettingsView() {
   const { theme, toggleTheme } = useAppStore();
+  const { currentUser, logout } = useAuthStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
 
+  const handleLogout = () => {
+    if (confirm('Are you sure you want to log out?')) {
+      logout();
+      useAppStore.getState().setDataLoaded(false);
+      window.location.reload();
+    }
+  };
+
   const sections = [
+    {
+      title: '👤 Account',
+      items: [
+        { label: 'Name', description: currentUser?.full_name || 'Not set', action: <span className="text-xs px-2 py-1 rounded-lg" style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>🟢 Online</span> },
+        { label: 'Phone', description: currentUser?.phone || 'Not set', action: null },
+        { label: 'Role', description: currentUser?.role === 'admin' ? 'Administrator' : 'Team Member', action: <span className="text-[10px] px-2 py-1 rounded-full" style={{ background: currentUser?.role === 'admin' ? '#8b5cf615' : '#06b6d415', color: currentUser?.role === 'admin' ? '#8b5cf6' : '#06b6d4' }}>{currentUser?.role}</span> },
+        { label: 'XP Points', description: `${currentUser?.xp_points || 0} XP · Level ${currentUser?.level || 1}`, action: <span className="text-lg">🏆</span> },
+      ],
+    },
     {
       title: '🎨 Appearance',
       items: [
@@ -27,18 +46,11 @@ export default function SettingsView() {
       ],
     },
     {
-      title: '👥 Team & Permissions',
-      items: [
-        { label: 'Invite Members', description: 'Add new team members via email', action: <button className="btn-primary text-xs">Invite</button> },
-        { label: 'Role Management', description: 'Configure team roles and permissions', action: <button className="text-xs font-medium" style={{ color: '#8b5cf6' }}>Manage →</button> },
-      ],
-    },
-    {
       title: '🔗 Integrations',
       items: [
         { label: 'WhatsApp Business', description: 'Connect WhatsApp for CRM', action: <span className="text-[10px] px-2 py-1 rounded-full" style={{ background: '#10b98115', color: '#10b981' }}>Connected</span> },
         { label: 'Google Calendar', description: 'Sync calendar events', action: <button className="text-xs font-medium" style={{ color: '#8b5cf6' }}>Connect</button> },
-        { label: 'Razorpay', description: 'Payment gateway integration', action: <span className="text-[10px] px-2 py-1 rounded-full" style={{ background: '#10b98115', color: '#10b981' }}>Connected</span> },
+        { label: 'Supabase', description: 'Database backend', action: <span className="text-[10px] px-2 py-1 rounded-full" style={{ background: '#10b98115', color: '#10b981' }}>Connected</span> },
       ],
     },
     {
@@ -72,6 +84,21 @@ export default function SettingsView() {
           </div>
         </motion.div>
       ))}
+
+      {/* Logout Button */}
+      <motion.button
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={handleLogout}
+        className="w-full py-3 rounded-xl text-sm font-semibold transition-all"
+        style={{
+          background: 'rgba(244,63,94,0.1)',
+          color: '#f43f5e',
+          border: '1px solid rgba(244,63,94,0.2)',
+        }}
+      >
+        🚪 Log Out
+      </motion.button>
     </div>
   );
 }
@@ -81,9 +108,8 @@ function Toggle({ defaultOn = false }: { defaultOn?: boolean }) {
   return (
     <motion.button whileTap={{ scale: 0.95 }} onClick={() => setOn(!on)}
       className="w-10 h-6 rounded-full relative transition-colors"
-      style={{ background: on ? '#8b5cf6' : '#2a2a3a' }}>
+      style={{ background: on ? '#8b5cf6' : '#d1d5db' }}>
       <motion.div animate={{ x: on ? 18 : 2 }} className="w-4 h-4 rounded-full bg-white absolute top-1" />
     </motion.button>
   );
 }
-

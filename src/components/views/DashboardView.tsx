@@ -1,6 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { weeklyProductivity, monthlyRevenue, leadSources, pipelineData } from '@/lib/mockData';
@@ -9,28 +10,37 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } 
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 
 export default function DashboardView() {
-  const { theme, tasks } = useAppStore();
+  const { theme, tasks, leads, teamMembers } = useAppStore();
+  const { currentUser } = useAuthStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
 
+  const todoTasks = tasks.filter(t => t.status === 'todo').length;
+  const doneTasks = tasks.filter(t => t.status === 'done').length;
+  const urgentTasks = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done').length;
+  const newLeads = leads.filter(l => l.status === 'new_lead').length;
+
+  const greeting = new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 17 ? 'Good Afternoon' : 'Good Evening';
+  const userName = currentUser?.full_name?.split(' ')[0] || 'Team';
+
   const stats = [
-    { label: "Today's Tasks", value: '8', sub: '3 completed', icon: '✅', color: '#8b5cf6', delta: '+2' },
-    { label: 'Pending Tasks', value: '12', sub: '4 urgent', icon: '⏳', color: '#f59e0b', delta: '-3' },
-    { label: 'Focus Hours', value: '5.2h', sub: 'Today', icon: '🧘', color: '#06b6d4', delta: '+1.2' },
-    { label: 'CRM Leads', value: '24', sub: '6 new today', icon: '🎯', color: '#10b981', delta: '+6' },
-    { label: 'Team Online', value: '5/8', sub: 'Active now', icon: '👥', color: '#ec4899', delta: '' },
-    { label: 'Productivity', value: '75%', sub: '↑ 12%', icon: '📈', color: '#22c55e', delta: '+12%' },
+    { label: 'Total Tasks', value: String(tasks.length), sub: `${doneTasks} completed`, icon: '✅', color: '#8b5cf6', delta: '' },
+    { label: 'Pending', value: String(todoTasks), sub: `${urgentTasks} urgent`, icon: '⏳', color: '#f59e0b', delta: '' },
+    { label: 'Focus Hours', value: '—', sub: 'Start a session', icon: '🧘', color: '#06b6d4', delta: '' },
+    { label: 'CRM Leads', value: String(leads.length), sub: `${newLeads} new`, icon: '🎯', color: '#10b981', delta: '' },
+    { label: 'Team', value: String(teamMembers.length), sub: 'members', icon: '👥', color: '#ec4899', delta: '' },
+    { label: 'Done Rate', value: tasks.length > 0 ? `${Math.round((doneTasks / tasks.length) * 100)}%` : '—', sub: 'completion', icon: '📈', color: '#22c55e', delta: '' },
   ];
 
-  const todaysTasks = [
-    { id: 1, title: 'Follow up with webinar attendees', priority: 'urgent', time: '9:00 AM', done: false },
-    { id: 2, title: 'WhatsApp broadcast campaign', priority: 'high', time: '10:00 AM', done: false },
-    { id: 3, title: 'Design webinar landing page', priority: 'high', time: '11:00 AM', done: false },
-    { id: 4, title: 'Team standup meeting', priority: 'medium', time: '10:30 AM', done: true },
-    { id: 5, title: 'Review sales report', priority: 'medium', time: '2:00 PM', done: true },
-    { id: 6, title: 'Customer support check-in', priority: 'low', time: '3:00 PM', done: true },
-  ];
+  // Use real tasks from DB for "today's tasks"
+  const todaysTasks = tasks.slice(0, 6).map(t => ({
+    id: t.id,
+    title: t.title,
+    priority: t.priority,
+    time: '',
+    done: t.status === 'done',
+  }));
 
   const COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#6b7280'];
 
@@ -38,7 +48,7 @@ export default function DashboardView() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       {/* Greeting */}
       <motion.div variants={item}>
-        <h1 className="text-2xl font-bold" style={{ color: textColor }}>Good Morning, Sneha 🧘‍♀️</h1>
+        <h1 className="text-2xl font-bold" style={{ color: textColor }}>{greeting}, {userName} 🧘‍♀️</h1>
         <p className="text-sm mt-1" style={{ color: mutedColor }}>Here&apos;s your productivity overview for today</p>
       </motion.div>
 

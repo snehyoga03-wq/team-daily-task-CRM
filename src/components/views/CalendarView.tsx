@@ -11,7 +11,7 @@ export default function CalendarView() {
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 13));
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week'>('month');
 
   const year = currentDate.getFullYear();
@@ -26,7 +26,7 @@ export default function CalendarView() {
 
   const getEventsForDay = (day: number) => {
     return events.filter(e => {
-      const d = new Date(e.startTime);
+      const d = new Date(e.start_time);
       return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
     });
   };
@@ -90,7 +90,7 @@ export default function CalendarView() {
                     <span className={`text-xs font-medium ${isToday ? 'text-purple-400' : ''}`} style={{ color: isToday ? undefined : textColor }}>{day}</span>
                     <div className="mt-1 space-y-1">
                       {dayEvents.slice(0, 2).map(e => (
-                        <div key={e.id} className="text-[9px] px-1.5 py-0.5 rounded-md truncate" style={{ background: `${e.color}20`, color: e.color }}>{e.title}</div>
+                        <div key={e.id} className="text-[9px] px-1.5 py-0.5 rounded-md truncate" style={{ background: `${e.color || '#8b5cf6'}20`, color: e.color || '#8b5cf6' }}>{e.title}</div>
                       ))}
                       {dayEvents.length > 2 && <span className="text-[9px]" style={{ color: mutedColor }}>+{dayEvents.length - 2} more</span>}
                     </div>
@@ -112,10 +112,10 @@ export default function CalendarView() {
               <div className="flex-1">
                 <p className="text-sm font-medium" style={{ color: textColor }}>{e.title}</p>
                 <p className="text-[11px]" style={{ color: mutedColor }}>
-                  {new Date(e.startTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {new Date(e.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(e.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {new Date(e.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
-              <span className="text-[10px] px-2 py-1 rounded-full capitalize" style={{ background: `${e.color}15`, color: e.color }}>{e.type}</span>
+              <span className="text-[10px] px-2 py-1 rounded-full capitalize" style={{ background: `${e.color || '#8b5cf6'}15`, color: e.color || '#8b5cf6' }}>{e.type}</span>
             </motion.div>
           ))}
         </div>

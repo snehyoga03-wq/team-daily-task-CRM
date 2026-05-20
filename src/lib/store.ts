@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { DbTask, DbSubtask, DbLead, DbCalendarEvent, DbUser, DbChannel, DbMessage, DbNotification, DbAttendance } from './supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────
 export type View = 
@@ -21,23 +22,16 @@ export type TaskView = 'list' | 'kanban' | 'calendar' | 'timeline';
 export type Theme = 'dark' | 'light';
 export type CRMStage = 'new_lead' | 'interested' | 'follow_up' | 'joined_webinar' | 'converted' | 'not_interested';
 
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'todo' | 'in_progress' | 'review' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  assignee?: TeamMember;
-  dueDate?: string;
-  tags: string[];
-  subtasks: SubTask[];
-  comments: Comment[];
-  estimatedHours?: number;
-  actualHours?: number;
-  createdAt: string;
-  updatedAt: string;
-}
+// Re-export DB types with friendly aliases used by components
+export type Task = DbTask & { subtasks?: DbSubtask[]; assignee?: DbUser | null };
+export type CRMLead = DbLead;
+export type CalendarEvent = DbCalendarEvent;
+export type TeamMember = DbUser;
+export type Channel = DbChannel & { unreadCount?: number; lastMessage?: string; lastMessageAt?: string };
+export type Message = DbMessage & { userName?: string; userAvatar?: string };
+export type Notification = DbNotification;
 
+// Legacy interfaces still used by some components
 export interface SubTask {
   id: string;
   title: string;
@@ -52,45 +46,6 @@ export interface Comment {
   createdAt: string;
 }
 
-export interface CRMLead {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  whatsappStatus?: string;
-  status: CRMStage;
-  source?: string;
-  notes?: string;
-  assignedTo?: string;
-  value: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  description?: string;
-  startTime: string;
-  endTime: string;
-  type: 'meeting' | 'webinar' | 'task' | 'reminder' | 'event';
-  color?: string;
-  attendees: string[];
-}
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  avatar: string;
-  role: string;
-  team: string;
-  xpPoints: number;
-  level: number;
-  streakDays: number;
-  status: 'online' | 'away' | 'offline' | 'focus';
-}
-
 export interface FocusSession {
   id: string;
   duration: number;
@@ -98,38 +53,6 @@ export interface FocusSession {
   type: string;
   startedAt: string;
   endedAt?: string;
-}
-
-export interface Channel {
-  id: string;
-  name: string;
-  description?: string;
-  type: 'public' | 'private' | 'direct';
-  members: string[];
-  unreadCount: number;
-  lastMessage?: string;
-  lastMessageAt?: string;
-}
-
-export interface Message {
-  id: string;
-  channelId: string;
-  userId: string;
-  userName: string;
-  userAvatar: string;
-  content: string;
-  reactions: Record<string, string[]>;
-  createdAt: string;
-}
-
-export interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'task' | 'crm' | 'webinar' | 'mention' | 'deadline' | 'announcement';
-  isRead: boolean;
-  actionUrl?: string;
-  createdAt: string;
 }
 
 // ─── Store ───────────────────────────────────────────────────────────
@@ -154,25 +77,25 @@ interface AppState {
   taskView: TaskView;
   setTaskView: (view: TaskView) => void;
   
-  // Tasks
+  // Tasks (from Supabase)
   tasks: Task[];
   setTasks: (tasks: Task[]) => void;
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   
-  // CRM
+  // CRM (from Supabase)
   leads: CRMLead[];
   setLeads: (leads: CRMLead[]) => void;
   addLead: (lead: CRMLead) => void;
   updateLead: (id: string, updates: Partial<CRMLead>) => void;
   
-  // Calendar
+  // Calendar (from Supabase)
   events: CalendarEvent[];
   setEvents: (events: CalendarEvent[]) => void;
   addEvent: (event: CalendarEvent) => void;
   
-  // Team
+  // Team (from Supabase)
   teamMembers: TeamMember[];
   setTeamMembers: (members: TeamMember[]) => void;
   
@@ -182,7 +105,7 @@ interface AppState {
   startFocusSession: (session: FocusSession) => void;
   endFocusSession: () => void;
   
-  // Chat
+  // Chat (from Supabase)
   channels: Channel[];
   setChannels: (channels: Channel[]) => void;
   activeChannel: string | null;
@@ -191,10 +114,14 @@ interface AppState {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   
-  // Notifications
+  // Notifications (from Supabase)
   notifications: Notification[];
   setNotifications: (notifications: Notification[]) => void;
   markNotificationRead: (id: string) => void;
+  
+  // Data Loading
+  dataLoaded: boolean;
+  setDataLoaded: (loaded: boolean) => void;
   
   // Search
   searchQuery: string;
@@ -237,7 +164,7 @@ export const useAppStore = create<AppState>()(
       // Tasks
       tasks: [],
       setTasks: (tasks) => set({ tasks }),
-      addTask: (task) => set((s) => ({ tasks: [...s.tasks, task] })),
+      addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
       updateTask: (id, updates) => set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
       })),
@@ -246,7 +173,7 @@ export const useAppStore = create<AppState>()(
       // CRM
       leads: [],
       setLeads: (leads) => set({ leads }),
-      addLead: (lead) => set((s) => ({ leads: [...s.leads, lead] })),
+      addLead: (lead) => set((s) => ({ leads: [lead, ...s.leads] })),
       updateLead: (id, updates) => set((s) => ({
         leads: s.leads.map((l) => (l.id === id ? { ...l, ...updates } : l)),
       })),
@@ -280,9 +207,13 @@ export const useAppStore = create<AppState>()(
       setNotifications: (notifications) => set({ notifications }),
       markNotificationRead: (id) => set((s) => ({
         notifications: s.notifications.map((n) =>
-          n.id === id ? { ...n, isRead: true } : n
+          n.id === id ? { ...n, is_read: true } : n
         ),
       })),
+      
+      // Data Loading
+      dataLoaded: false,
+      setDataLoaded: (loaded) => set({ dataLoaded: loaded }),
       
       // Search
       searchQuery: '',

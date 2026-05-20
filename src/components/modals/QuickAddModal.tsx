@@ -1,11 +1,14 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import * as dataService from '@/lib/dataService';
 
 export default function QuickAddModal() {
-  const { theme, quickAddOpen, setQuickAddOpen, addTask } = useAppStore();
+  const { theme, quickAddOpen, setQuickAddOpen, addTask, addLead, addEvent } = useAppStore();
+  const { currentUser } = useAuthStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
@@ -13,24 +16,53 @@ export default function QuickAddModal() {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [type, setType] = useState<'task' | 'lead' | 'event'>('task');
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = () => {
-    if (!title.trim()) return;
-    if (type === 'task') {
-      addTask({
-        id: `t${Date.now()}`,
-        title,
-        status: 'todo',
-        priority,
-        tags: [],
-        subtasks: [],
-        comments: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+  const handleSubmit = async () => {
+    if (!title.trim() || !currentUser) return;
+    setSaving(true);
+
+    try {
+      if (type === 'task') {
+        const task = await dataService.createTask({
+          title: title.trim(),
+          status: 'todo',
+          priority,
+          creator_id: currentUser.id,
+          tags: [],
+          order_index: 0,
+        });
+        addTask(task);
+      } else if (type === 'lead') {
+        const lead = await dataService.createLead({
+          name: title.trim(),
+          status: 'new_lead',
+          source: 'Manual',
+          value: 0,
+        });
+        addLead(lead);
+      } else if (type === 'event') {
+        const now = new Date();
+        const endTime = new Date(now.getTime() + 60 * 60 * 1000);
+        const event = await dataService.createEvent({
+          title: title.trim(),
+          start_time: now.toISOString(),
+          end_time: endTime.toISOString(),
+          type: 'event',
+          creator_id: currentUser.id,
+          attendees: [],
+        });
+        addEvent(event);
+      }
+
+      setTitle('');
+      setQuickAddOpen(false);
+    } catch (err: any) {
+      console.error('Failed to create:', err);
+      alert('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setTitle('');
-    setQuickAddOpen(false);
   };
 
   return (
@@ -73,7 +105,9 @@ export default function QuickAddModal() {
 
             <div className="flex justify-end gap-3">
               <button onClick={() => setQuickAddOpen(false)} className="px-4 py-2 rounded-xl text-sm" style={{ color: mutedColor }}>Cancel</button>
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleSubmit} className="btn-primary">Create {type}</motion.button>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving || !title.trim()} className="btn-primary disabled:opacity-50">
+                {saving ? 'Saving...' : `Create ${type}`}
+              </motion.button>
             </div>
           </motion.div>
         </>
