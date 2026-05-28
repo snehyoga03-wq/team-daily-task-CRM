@@ -61,7 +61,7 @@ export default function TasksView() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setQuickAddOpen(true)} className="btn-primary text-xs">
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSelectedTaskId('new')} className="btn-primary text-xs">
             ＋ Add Task
           </motion.button>
         </div>

@@ -16,12 +16,14 @@ export default function TaskDetailModal() {
     tasks,
     updateTask,
     deleteTask,
+    addTask,
     teamMembers,
   } = useAppStore();
   const { currentUser } = useAuthStore();
   const isDark = theme === 'dark';
 
-  const task = tasks.find((t) => t.id === selectedTaskId);
+  const isNew = selectedTaskId === 'new';
+  const task = isNew ? null : tasks.find((t) => t.id === selectedTaskId);
 
   // States
   const [title, setTitle] = useState('');
@@ -82,8 +84,22 @@ export default function TaskDetailModal() {
 
       // Load subtasks & comments from Supabase
       loadSubtasksAndComments(task.id);
+    } else if (isNew) {
+      setTitle('');
+      setDescription('');
+      setStatus('todo');
+      setPriority('medium');
+      setAssigneeId(null);
+      setTags([]);
+      setSelectedDate(null);
+      setSelectedTime('none');
+      setSelectedReminder('none');
+      setSelectedRepeat('none');
+      setDurationMinutes(0);
+      setSubtasks([]);
+      setComments([]);
     }
-  }, [task, selectedTaskId]);
+  }, [task, selectedTaskId, isNew]);
 
   // Click outside to close datepicker
   useEffect(() => {
@@ -109,7 +125,7 @@ export default function TaskDetailModal() {
   };
 
   const handleSave = async () => {
-    if (!task) return;
+    if (!task && !isNew) return;
     setIsSaving(true);
     try {
       const updates = {
@@ -128,13 +144,32 @@ export default function TaskDetailModal() {
         estimated_hours: durationMinutes > 0 ? durationMinutes / 60 : null,
       };
 
-      const updated = await dataService.updateTask(task.id, updates);
-      // Update global store
-      updateTask(task.id, {
-        ...updated,
-        subtasks, // keep subtasks
-        assignee: teamMembers.find(m => m.id === assigneeId) || null,
-      });
+      if (isNew) {
+        const created = await dataService.createTask(updates);
+        const createdSubtasks = [];
+        for (let i = 0; i < subtasks.length; i++) {
+          const newSub = await dataService.createSubtask({
+            task_id: created.id,
+            title: subtasks[i].title,
+            is_completed: subtasks[i].is_completed,
+            order_index: i,
+          });
+          createdSubtasks.push(newSub);
+        }
+        addTask({
+          ...created,
+          subtasks: createdSubtasks,
+          assignee: teamMembers.find(m => m.id === assigneeId) || null,
+        });
+      } else {
+        const updated = await dataService.updateTask(task!.id, updates);
+        // Update global store
+        updateTask(task!.id, {
+          ...updated,
+          subtasks, // keep subtasks
+          assignee: teamMembers.find(m => m.id === assigneeId) || null,
+        });
+      }
 
       setSelectedTaskId(null);
     } catch (err) {
@@ -161,10 +196,15 @@ export default function TaskDetailModal() {
 
   // Subtasks CRUD
   const handleAddSubtask = async () => {
-    if (!newSubtaskTitle.trim() || !task) return;
+    if (!newSubtaskTitle.trim() || (!task && !isNew)) return;
+    if (isNew) {
+      setSubtasks([...subtasks, { id: Date.now().toString(), title: newSubtaskTitle.trim(), is_completed: false }]);
+      setNewSubtaskTitle('');
+      return;
+    }
     try {
       const newSub = await dataService.createSubtask({
-        task_id: task.id,
+        task_id: task!.id,
         title: newSubtaskTitle.trim(),
         is_completed: false,
         order_index: subtasks.length,
@@ -173,33 +213,41 @@ export default function TaskDetailModal() {
       setNewSubtaskTitle('');
       
       // Update local store tasks with updated subtasks
-      updateTask(task.id, { subtasks: [...subtasks, newSub] });
+      updateTask(task!.id, { subtasks: [...subtasks, newSub] });
     } catch (err) {
       console.error('Error adding subtask:', err);
     }
   };
 
   const handleToggleSubtask = async (sub: any) => {
-    if (!task) return;
+    if (!task && !isNew) return;
+    if (isNew) {
+      setSubtasks(subtasks.map(s => s.id === sub.id ? { ...s, is_completed: !s.is_completed } : s));
+      return;
+    }
     try {
       const updated = await dataService.updateSubtask(sub.id, {
         is_completed: !sub.is_completed,
       });
       const newSubs = subtasks.map(s => s.id === sub.id ? updated : s);
       setSubtasks(newSubs);
-      updateTask(task.id, { subtasks: newSubs });
+      updateTask(task!.id, { subtasks: newSubs });
     } catch (err) {
       console.error('Error toggling subtask:', err);
     }
   };
 
   const handleDeleteSubtask = async (subId: string) => {
-    if (!task) return;
+    if (!task && !isNew) return;
+    if (isNew) {
+      setSubtasks(subtasks.filter(s => s.id !== subId));
+      return;
+    }
     try {
       await dataService.deleteSubtask(subId);
       const newSubs = subtasks.filter(s => s.id !== subId);
       setSubtasks(newSubs);
-      updateTask(task.id, { subtasks: newSubs });
+      updateTask(task!.id, { subtasks: newSubs });
     } catch (err) {
       console.error('Error deleting subtask:', err);
     }
@@ -281,7 +329,7 @@ export default function TaskDetailModal() {
     }
   };
 
-  if (!task) return null;
+  if (!task && !isNew) return null;
 
   return (
     <AnimatePresence>
@@ -414,58 +462,62 @@ export default function TaskDetailModal() {
                 </div>
 
                 {/* Comments Section */}
-                <div className="space-y-3 border-t pt-4" style={{ borderColor }}>
-                  <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: mutedColor }}>Comments</h3>
-                  <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2">
-                    {comments.map((comm) => (
-                      <div key={comm.id} className="flex gap-3 text-xs items-start">
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-white text-[9px] flex-shrink-0" style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' }}>
-                          {comm.user?.full_name?.charAt(0) || '?'}
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex justify-between">
-                            <span className="font-semibold" style={{ color: textColor }}>{comm.user?.full_name || 'Team member'}</span>
-                            <span className="text-[9px]" style={{ color: mutedColor }}>
-                              {comm.created_at ? new Date(comm.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
+                {!isNew && (
+                  <div className="space-y-3 border-t pt-4" style={{ borderColor }}>
+                    <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: mutedColor }}>Comments</h3>
+                    <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2">
+                      {comments.map((comm) => (
+                        <div key={comm.id} className="flex gap-3 text-xs items-start">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-white text-[9px] flex-shrink-0" style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' }}>
+                            {comm.user?.full_name?.charAt(0) || '?'}
                           </div>
-                          <p style={{ color: textColor }}>{comm.content}</p>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex justify-between">
+                              <span className="font-semibold" style={{ color: textColor }}>{comm.user?.full_name || 'Team member'}</span>
+                              <span className="text-[9px]" style={{ color: mutedColor }}>
+                                {comm.created_at ? new Date(comm.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                            </div>
+                            <p style={{ color: textColor }}>{comm.content}</p>
+                          </div>
+                          {currentUser && comm.user_id === currentUser.id && (
+                            <button onClick={() => handleDeleteComment(comm.id)} className="text-[9px] hover:text-red-500" style={{ color: mutedColor }}>Delete</button>
+                          )}
                         </div>
-                        {currentUser && comm.user_id === currentUser.id && (
-                          <button onClick={() => handleDeleteComment(comm.id)} className="text-[9px] hover:text-red-500" style={{ color: mutedColor }}>Delete</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
 
-                  <div className="flex gap-2">
-                    <input
-                      value={newCommentText}
-                      onChange={(e) => setNewCommentText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                      placeholder="Write a comment..."
-                      className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-                      style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
-                    />
-                    <button
-                      onClick={handleAddComment}
-                      className="px-3 py-2 rounded-xl text-xs font-bold text-white"
-                      style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' }}
-                    >
-                      Send
-                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        value={newCommentText}
+                        onChange={(e) => setNewCommentText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                        placeholder="Write a comment..."
+                        className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+                        style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
+                      />
+                      <button
+                        onClick={handleAddComment}
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-white"
+                        style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' }}
+                      >
+                        Send
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-6 border-t" style={{ borderColor }}>
-                <button
-                  onClick={handleDelete}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all text-red-500 hover:bg-red-500/10 border border-red-500/20"
-                >
-                  🗑️ Delete Task
-                </button>
+                {!isNew && (
+                  <button
+                    onClick={handleDelete}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all text-red-500 hover:bg-red-500/10 border border-red-500/20"
+                  >
+                    🗑️ Delete Task
+                  </button>
+                )}
                 <div className="flex-1" />
                 <button
                   onClick={() => setSelectedTaskId(null)}
