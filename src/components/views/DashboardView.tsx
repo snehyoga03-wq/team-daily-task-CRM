@@ -3,8 +3,8 @@
 import { useAppStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
 import { motion } from 'framer-motion';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { weeklyProductivity, monthlyRevenue, leadSources, pipelineData } from '@/lib/mockData';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { weeklyProductivity } from '@/lib/mockData';
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
@@ -42,8 +42,6 @@ export default function DashboardView() {
     done: t.status === 'done',
   }));
 
-  const COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#6b7280'];
-
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       {/* Greeting */}
@@ -68,7 +66,7 @@ export default function DashboardView() {
       </motion.div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-5">
         {/* Productivity Chart */}
         <motion.div variants={item} className="glass-card p-5">
           <h3 className="text-sm font-semibold mb-4" style={{ color: textColor }}>📊 Weekly Productivity</h3>
@@ -92,24 +90,10 @@ export default function DashboardView() {
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>
-
-        {/* Revenue Chart */}
-        <motion.div variants={item} className="glass-card p-5">
-          <h3 className="text-sm font-semibold mb-4" style={{ color: textColor }}>💰 Monthly Revenue</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyRevenue}>
-              <XAxis dataKey="month" tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: mutedColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
-              <Tooltip contentStyle={{ background: isDark ? '#1a1a25' : '#fff', border: 'none', borderRadius: 12, fontSize: 12 }} formatter={(v: any) => [`₹${v.toLocaleString()}`, '']} />
-              <Bar dataKey="revenue" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="target" fill={isDark ? '#2a2a3a' : '#e5e2f0'} radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
       </div>
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-5">
         {/* Today's Tasks */}
         <motion.div variants={item} className="glass-card p-5">
           <h3 className="text-sm font-semibold mb-4" style={{ color: textColor }}>✅ Today&apos;s Tasks</h3>
@@ -125,83 +109,8 @@ export default function DashboardView() {
             ))}
           </div>
         </motion.div>
-
-        {/* Lead Sources */}
-        <motion.div variants={item} className="glass-card p-5">
-          <h3 className="text-sm font-semibold mb-4" style={{ color: textColor }}>🎯 Lead Sources</h3>
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={leadSources} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="count">
-                  {leadSources.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: isDark ? '#1a1a25' : '#fff', border: 'none', borderRadius: 12, fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {leadSources.slice(0, 4).map((s, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: COLORS[i] }} />
-                <span className="text-[11px]" style={{ color: mutedColor }}>{s.source} ({s.count})</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Sales Pipeline */}
-        <motion.div variants={item} className="glass-card p-5">
-          <h3 className="text-sm font-semibold mb-4" style={{ color: textColor }}>💼 Sales Pipeline</h3>
-          <div className="space-y-3">
-            {pipelineData.map((p, i) => (
-              <div key={i}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-xs" style={{ color: textColor }}>{p.stage}</span>
-                  <span className="text-xs font-semibold" style={{ color: p.color }}>{p.count}</span>
-                </div>
-                <div className="h-2 rounded-full" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0' }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(p.count / 24) * 100}%` }}
-                    transition={{ duration: 1, delay: i * 0.1 }}
-                    className="h-full rounded-full"
-                    style={{ background: p.color }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 pt-3 border-t flex justify-between" style={{ borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
-            <span className="text-xs" style={{ color: mutedColor }}>Total Pipeline Value</span>
-            <span className="text-sm font-bold gradient-text">₹4,32,923</span>
-          </div>
-        </motion.div>
       </div>
 
-      {/* Team Leaderboard */}
-      <motion.div variants={item} className="glass-card p-5">
-        <h3 className="text-sm font-semibold mb-4" style={{ color: textColor }}>🏆 Team Leaderboard</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { name: 'Sneha Sharma', avatar: '🧘‍♀️', xp: 4850, level: 12, streak: 45, tasks: 28 },
-            { name: 'Ravi Kumar', avatar: '⚡', xp: 4200, level: 11, streak: 38, tasks: 24 },
-            { name: 'Arjun Mehta', avatar: '🎯', xp: 3750, level: 10, streak: 30, tasks: 22 },
-            { name: 'Meera Nair', avatar: '✨', xp: 3400, level: 9, streak: 20, tasks: 18 },
-          ].map((m, i) => (
-            <motion.div key={i} whileHover={{ y: -2 }} className="pipeline-card p-4 text-center relative overflow-hidden">
-              {i === 0 && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: 'linear-gradient(90deg, #9333ea, #06b6d4)' }} />}
-              <div className="text-xs font-bold mb-2" style={{ color: i === 0 ? '#f59e0b' : mutedColor }}>#{i + 1}</div>
-              <div className="text-3xl mb-2">{m.avatar}</div>
-              <p className="text-sm font-semibold" style={{ color: textColor }}>{m.name}</p>
-              <p className="text-xs mt-1" style={{ color: '#8b5cf6' }}>{m.xp} XP · Level {m.level}</p>
-              <div className="flex items-center justify-center gap-3 mt-2">
-                <span className="text-[10px]" style={{ color: mutedColor }}>🔥 {m.streak}d</span>
-                <span className="text-[10px]" style={{ color: mutedColor }}>✅ {m.tasks}</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
     </motion.div>
   );
 }

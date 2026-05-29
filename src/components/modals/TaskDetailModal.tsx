@@ -5,6 +5,7 @@ import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import * as dataService from '@/lib/dataService';
+import { sendWhatsAppReminder } from '@/lib/whatsapp';
 import { DbUser } from '@/lib/supabase';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths } from 'date-fns';
 
@@ -54,6 +55,7 @@ export default function TaskDetailModal() {
 
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Ref for picking date dialog
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -519,6 +521,29 @@ export default function TaskDetailModal() {
                   </button>
                 )}
                 <div className="flex-1" />
+                {!isNew && task?.assignee?.phone && (
+                  <button
+                    onClick={async () => {
+                      setIsSendingWhatsApp(true);
+                      try {
+                        await sendWhatsAppReminder(
+                          task.assignee!.phone!,
+                          `Hey ${task.assignee!.full_name?.split(' ')[0]}, reminder for task: ${task.title}`
+                        );
+                        alert('WhatsApp reminder sent!');
+                      } catch (err) {
+                        alert('Failed to send WhatsApp reminder');
+                      } finally {
+                        setIsSendingWhatsApp(false);
+                      }
+                    }}
+                    disabled={isSendingWhatsApp}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-white disabled:opacity-50"
+                    style={{ background: '#25D366' }}
+                  >
+                    {isSendingWhatsApp ? 'Sending...' : '📱 Send WA Reminder'}
+                  </button>
+                )}
                 <button
                   onClick={() => setSelectedTaskId(null)}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all"
