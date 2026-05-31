@@ -14,6 +14,12 @@ export async function POST(request: Request) {
       );
     }
 
+    // Normalize phone number (assume Indian number if 10 digits)
+    let formattedPhone = phone.replace(/[^0-9]/g, '');
+    if (formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone;
+    }
+
     if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_ID) {
       return NextResponse.json(
         { error: 'WhatsApp API credentials are not configured' },
@@ -23,15 +29,14 @@ export async function POST(request: Request) {
 
     const url = `https://graph.facebook.com/v17.0/${WHATSAPP_PHONE_ID}/messages`;
     
-    // The user's template is daily_yoga_05
     const payload = {
       messaging_product: 'whatsapp',
-      to: phone,
+      to: formattedPhone,
       type: 'template',
       template: {
         name: 'daily_yoga_05',
         language: {
-          code: 'en_US' // Adjust to 'en' if 'en_US' throws an error
+          code: 'en'
         },
         components: [
           {
