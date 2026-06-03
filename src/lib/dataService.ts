@@ -22,22 +22,48 @@ export async function fetchSubtasks(taskId: string) {
 }
 
 export async function createTask(task: Partial<DbTask>) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tasks')
     .insert(task)
     .select()
     .single();
+
+  // Fallback if migration hasn't been run (column depends_on or start_date doesn't exist)
+  if (error && error.code === 'PGRST204') {
+    console.warn('Database migration missing. Saving without start_date and depends_on.');
+    const fallbackTask = { ...task };
+    delete fallbackTask.start_date;
+    delete fallbackTask.depends_on;
+    const res = await supabase.from('tasks').insert(fallbackTask).select().single();
+    data = res.data;
+    error = res.error;
+    if (!error) alert("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
+  }
+
   if (error) throw error;
   return data as DbTask;
 }
 
 export async function updateTask(id: string, updates: Partial<DbTask>) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tasks')
     .update(updates)
     .eq('id', id)
     .select()
     .single();
+
+  // Fallback if migration hasn't been run
+  if (error && error.code === 'PGRST204') {
+    console.warn('Database migration missing. Saving without start_date and depends_on.');
+    const fallbackUpdates = { ...updates };
+    delete fallbackUpdates.start_date;
+    delete fallbackUpdates.depends_on;
+    const res = await supabase.from('tasks').update(fallbackUpdates).eq('id', id).select().single();
+    data = res.data;
+    error = res.error;
+    if (!error) alert("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
+  }
+
   if (error) throw error;
   return data as DbTask;
 }

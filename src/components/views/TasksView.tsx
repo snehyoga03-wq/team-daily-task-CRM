@@ -4,6 +4,7 @@ import { useAppStore, Task } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import TaskDetailModal from '@/components/modals/TaskDetailModal';
+import GanttBoard from './GanttBoard';
 
 const statusConfig = {
   todo: { label: 'To Do', color: '#8b5cf6', icon: '📋' },
@@ -23,7 +24,7 @@ export default function TasksView() {
   const [filter, setFilter] = useState<string>('all');
 
   const filteredTasks = filter === 'all' ? tasks : tasks.filter(t => t.priority === filter);
-  const views = ['kanban', 'list'] as const;
+  const views = ['kanban', 'list', 'gantt'] as const;
 
   const handleDragStart = (taskId: string) => setDraggedTask(taskId);
   const handleDrop = (status: Task['status']) => {
@@ -49,7 +50,7 @@ export default function TasksView() {
                 background: taskView === v ? 'rgba(139,92,246,0.15)' : 'transparent',
                 color: taskView === v ? '#a855f7' : mutedColor,
               }}>
-                {v === 'kanban' ? '▦ Kanban' : '☰ List'}
+                {v === 'kanban' ? '▦ Kanban' : v === 'list' ? '☰ List' : '📊 Gantt'}
               </button>
             ))}
           </div>
@@ -154,6 +155,11 @@ export default function TasksView() {
             </motion.div>
           ))}
         </div>
+      )}
+
+      {/* Gantt View */}
+      {taskView === 'gantt' && (
+        <GanttBoard filteredTasks={filteredTasks} />
       )}
 
       {/* Task Detail & Edit Modal */}

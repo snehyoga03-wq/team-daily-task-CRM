@@ -49,6 +49,8 @@ export interface DbTask {
   team_id: string | null;
   due_date: string | null;
   due_time?: string | null;
+  start_date?: string | null;
+  depends_on?: string[];
   reminder?: string | null;
   duration_minutes?: number | null;
   is_recurring?: boolean;

@@ -38,11 +38,13 @@ export default function TaskDetailModal() {
   // Date / Time / Duration Picker states
   const [activeDateTab, setActiveDateTab] = useState<'date' | 'duration'>('date');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null); // This is Due Date
+  const [startDate, setStartDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('none');
   const [selectedReminder, setSelectedReminder] = useState<string>('none');
   const [selectedRepeat, setSelectedRepeat] = useState<string>('none');
   const [durationMinutes, setDurationMinutes] = useState<number>(0);
+  const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   // Subtasks
@@ -79,10 +81,12 @@ export default function TaskDetailModal() {
       
       // Parse dates
       setSelectedDate(task.due_date ? new Date(task.due_date) : null);
+      setStartDate(task.start_date ? new Date(task.start_date) : null);
       setSelectedTime(task.due_time || 'none');
       setSelectedReminder(task.reminder || 'none');
       setSelectedRepeat(task.recurrence_pattern || 'none');
       setDurationMinutes(task.duration_minutes || 0);
+      setDependsOn(task.depends_on || []);
 
       // Load subtasks & comments from Supabase
       loadSubtasksAndComments(task.id);
@@ -94,10 +98,12 @@ export default function TaskDetailModal() {
       setAssigneeId(null);
       setTags([]);
       setSelectedDate(null);
+      setStartDate(null);
       setSelectedTime('none');
       setSelectedReminder('none');
       setSelectedRepeat('none');
       setDurationMinutes(0);
+      setDependsOn([]);
       setSubtasks([]);
       setComments([]);
     }
@@ -138,6 +144,8 @@ export default function TaskDetailModal() {
         assignee_id: assigneeId,
         tags,
         due_date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
+        start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
+        depends_on: dependsOn,
         due_time: selectedTime !== 'none' ? selectedTime : null,
         reminder: selectedReminder !== 'none' ? selectedReminder : null,
         duration_minutes: durationMinutes > 0 ? durationMinutes : null,
@@ -174,9 +182,13 @@ export default function TaskDetailModal() {
       }
 
       setSelectedTaskId(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving task:', err);
-      alert('Failed to save task');
+      if (err.message && err.message.includes('column')) {
+        alert('Database Error: ' + err.message + '. Did you forget to run the migration?');
+      } else {
+        alert('Failed to save task: ' + (err.message || 'Unknown error'));
+      }
     } finally {
       setIsSaving(false);
     }
@@ -654,6 +666,45 @@ export default function TaskDetailModal() {
                   style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
                 />
               </div>
+
+              {/* Dependencies Section */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: mutedColor }}>
+                  Dependencies (Blocks)
+                </label>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {dependsOn.map((depId) => {
+                    const depTask = tasks.find(t => t.id === depId);
+                    return (
+                      <span
+                        key={depId}
+                        className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium"
+                        style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }} // Red tint for blockers
+                      >
+                        {depTask ? depTask.title.substring(0, 15) + '...' : 'Unknown'}
+                        <button onClick={() => setDependsOn(dependsOn.filter(d => d !== depId))} className="text-[8px] hover:text-red-500">
+                          ✕
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value && !dependsOn.includes(e.target.value)) {
+                      setDependsOn([...dependsOn, e.target.value]);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs outline-none cursor-pointer"
+                  style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
+                >
+                  <option value="">+ Add Dependency...</option>
+                  {tasks.filter(t => t.id !== task?.id && !dependsOn.includes(t.id)).map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* advanced DATE / DURATION PICKER DIALOG (TickTick Style) */}
@@ -707,22 +758,38 @@ export default function TaskDetailModal() {
                       <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
                     </div>
 
-                    {/* Calendar Grid */}
                     <div className="grid grid-cols-7 gap-1 text-center">
                       {emptyCells.map((_, idx) => (
                         <div key={`empty-${idx}`} />
                       ))}
                       {daysInMonth.map((day) => {
-                        const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+                        const isDue = selectedDate ? isSameDay(day, selectedDate) : false;
+                        const isStart = startDate ? isSameDay(day, startDate) : false;
+                        const isBetween = startDate && selectedDate && day > startDate && day < selectedDate;
+
                         return (
                           <button
                             key={day.toString()}
-                            onClick={() => setSelectedDate(day)}
-                            className="h-7 w-7 rounded-full text-xs font-medium flex items-center justify-center mx-auto transition-all"
+                            onClick={() => {
+                              // If no start date, set start date. If start date, set due date.
+                              if (!startDate || (startDate && selectedDate)) {
+                                setStartDate(day);
+                                setSelectedDate(null);
+                              } else {
+                                if (day < startDate) {
+                                  setSelectedDate(startDate);
+                                  setStartDate(day);
+                                } else {
+                                  setSelectedDate(day);
+                                }
+                              }
+                            }}
+                            className="h-7 w-full text-xs font-medium flex items-center justify-center transition-all relative"
                             style={{
-                              background: isSelected ? '#8b5cf6' : 'transparent',
-                              color: isSelected ? '#white' : textColor,
-                              fontWeight: isSelected ? 'bold' : 'normal',
+                              background: isStart || isDue ? '#8b5cf6' : (isBetween ? 'rgba(139,92,246,0.15)' : 'transparent'),
+                              color: isStart || isDue ? '#ffffff' : textColor,
+                              fontWeight: isStart || isDue ? 'bold' : 'normal',
+                              borderRadius: isStart && isDue ? '999px' : (isStart ? '999px 0 0 999px' : (isDue ? '0 999px 999px 0' : '0')),
                             }}
                           >
                             {format(day, 'd')}
@@ -823,6 +890,7 @@ export default function TaskDetailModal() {
                   <button
                     onClick={() => {
                       setSelectedDate(null);
+                      setStartDate(null);
                       setSelectedTime('none');
                       setSelectedReminder('none');
                       setSelectedRepeat('none');
