@@ -23,7 +23,42 @@ export default function TasksView() {
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
 
-  const filteredTasks = filter === 'all' ? tasks : tasks.filter(t => t.priority === filter);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const getTaskState = (task: Task) => {
+    const isCompleted = task.status === 'done';
+    let isOverdue = false;
+    let isDueToday = false;
+    let daysDelayed = 0;
+    
+    if (!isCompleted && task.due_date) {
+      const dueDate = new Date(task.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      if (dueDate < today) {
+        isOverdue = true;
+        daysDelayed = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      } else if (dueDate.getTime() === today.getTime()) {
+        isDueToday = true;
+      }
+    }
+    return { isCompleted, isOverdue, isDueToday, daysDelayed };
+  };
+
+  const filteredTasks = tasks.filter(t => {
+    if (filter === 'all') return true;
+    if (['urgent', 'high', 'medium', 'low'].includes(filter)) return t.priority === filter;
+    
+    const state = getTaskState(t);
+    if (filter === 'completed') return state.isCompleted;
+    if (filter === 'overdue') return state.isOverdue;
+    if (filter === 'due_today') return state.isDueToday;
+    return true;
+  });
+
+  const overdueCount = tasks.filter(t => getTaskState(t).isOverdue).length;
+
   const views = ['kanban', 'list', 'gantt'] as const;
 
   const handleDragStart = (taskId: string) => setDraggedTask(taskId);
@@ -33,6 +68,11 @@ export default function TasksView() {
       setDraggedTask(null);
     }
   };
+  
+  const handleMarkComplete = (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateTask(task.id, { status: 'done', completed_at: new Date().toISOString() } as Partial<Task>);
+  };
 
   return (
     <div className="space-y-5">
@@ -40,7 +80,13 @@ export default function TasksView() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold" style={{ color: textColor }}>Task Management</h1>
-          <p className="text-xs mt-1" style={{ color: mutedColor }}>{tasks.length} tasks · {tasks.filter(t => t.status === 'done').length} completed</p>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.1)', color: '#a855f7' }}>Total: {tasks.length}</span>
+            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.1)', color: '#10b981' }}>Done: {tasks.filter(t => t.status === 'done').length}</span>
+            {overdueCount > 0 && (
+              <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(244,63,94,0.1)' : 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>Overdue: {overdueCount}</span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {/* View Switcher */}
@@ -56,11 +102,18 @@ export default function TasksView() {
           </div>
           {/* Filter */}
           <select value={filter} onChange={e => setFilter(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
-            <option value="all">All Priorities</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <optgroup label="Views">
+              <option value="all">All Tasks</option>
+              <option value="due_today">Due Today</option>
+              <option value="overdue">Overdue</option>
+              <option value="completed">Completed</option>
+            </optgroup>
+            <optgroup label="Priority">
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </optgroup>
           </select>
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSelectedTaskId('new')} className="btn-primary text-xs">
             ＋ Add Task
@@ -90,7 +143,18 @@ export default function TasksView() {
                 </div>
                 <div className="space-y-3">
                   <AnimatePresence>
-                    {columnTasks.map(task => (
+                    {columnTasks.map(task => {
+                      const state = getTaskState(task);
+                      let cardStyle = {};
+                      if (state.isCompleted) {
+                        cardStyle = { borderColor: '#10b981', background: isDark ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.1)' };
+                      } else if (state.isOverdue) {
+                        cardStyle = { borderColor: '#f43f5e', background: isDark ? 'rgba(244, 63, 94, 0.05)' : 'rgba(244, 63, 94, 0.1)' };
+                      } else if (state.isDueToday) {
+                        cardStyle = { borderColor: '#f97316' };
+                      }
+
+                      return (
                       <motion.div
                         key={task.id}
                         layout
@@ -100,12 +164,38 @@ export default function TasksView() {
                         draggable
                         onDragStart={() => handleDragStart(task.id)}
                         onClick={() => setSelectedTaskId(task.id)}
-                        className="task-card cursor-pointer"
+                        className="task-card cursor-pointer relative group"
+                        style={cardStyle}
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-start justify-between gap-2 mb-2 pr-6">
                           <span className="text-sm font-medium leading-snug" style={{ color: textColor }}>{task.title}</span>
-                          <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: priorityColors[task.priority] }} />
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: priorityColors[task.priority] }} />
+                          </div>
                         </div>
+
+                        {!state.isCompleted && (
+                          <button 
+                            onClick={(e) => handleMarkComplete(task, e)}
+                            className="absolute top-3 right-3 w-5 h-5 rounded-full border border-gray-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-500 hover:border-green-500 hover:text-white text-transparent"
+                            title="Mark Complete"
+                          >
+                            ✓
+                          </button>
+                        )}
+                        {state.isCompleted && (
+                          <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center text-xs">
+                            ✓
+                          </div>
+                        )}
+
+                        {state.isOverdue && (
+                          <div className="mb-2">
+                            <span className="text-[10px] px-2 py-0.5 rounded text-white bg-rose-500 font-semibold">
+                              Delayed by {state.daysDelayed} {state.daysDelayed === 1 ? 'day' : 'days'}
+                            </span>
+                          </div>
+                        )}
                         {task.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-2">
                             {task.tags.slice(0, 3).map(tag => (
@@ -126,11 +216,13 @@ export default function TasksView() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {task.assignee && <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #9333ea, #06b6d4)' }}>{task.assignee.full_name?.charAt(0)}</span>}
-                            {task.due_date && <span className="text-[10px]" style={{ color: mutedColor }}>📅 {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                            {task.due_date && !state.isCompleted && <span className="text-[10px]" style={{ color: mutedColor }}>📅 {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                            {state.isCompleted && task.completed_at && <span className="text-[10px] text-green-500 font-medium">✅ {new Date(task.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                           </div>
                         </div>
                       </motion.div>
-                    ))}
+                    );
+                    })}
                   </AnimatePresence>
                 </div>
               </div>

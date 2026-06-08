@@ -391,14 +391,22 @@ export async function fetchAttendance(date?: string) {
 }
 
 export async function checkIn(userId: string) {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  
+  // Office start time is 10:00 AM local time
+  const officeStartTime = new Date(now);
+  officeStartTime.setHours(10, 0, 0, 0);
+  
+  const status = now > officeStartTime ? 'late' : 'present';
+
   const { data, error } = await supabase
     .from('attendance')
     .upsert({
       user_id: userId,
       date: today,
-      check_in: new Date().toISOString(),
-      status: 'present',
+      check_in: now.toISOString(),
+      status: status,
     }, { onConflict: 'user_id,date' })
     .select()
     .single();
@@ -410,13 +418,48 @@ export async function checkOut(userId: string) {
   const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('attendance')
-    .update({ check_out: new Date().toISOString() })
+    .update({ check_out: new Date().toISOString(), status: 'checked_out' })
     .eq('user_id', userId)
     .eq('date', today)
     .select()
     .single();
   if (error) throw error;
   return data as DbAttendance;
+}
+
+export async function updateAttendanceStatus(userId: string, status: DbAttendance['status']) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  const { data: existing, error: fetchError } = await supabase
+    .from('attendance')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .maybeSingle();
+    
+  if (fetchError) throw fetchError;
+  
+  let result;
+  if (!existing) {
+    const { data, error } = await supabase
+      .from('attendance')
+      .insert({ user_id: userId, date: today, status: status })
+      .select()
+      .single();
+    if (error) throw error;
+    result = data;
+  } else {
+    const { data, error } = await supabase
+      .from('attendance')
+      .update({ status: status })
+      .eq('user_id', userId)
+      .eq('date', today)
+      .select()
+      .single();
+    if (error) throw error;
+    result = data;
+  }
+  return result as DbAttendance;
 }
 
 // ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────────

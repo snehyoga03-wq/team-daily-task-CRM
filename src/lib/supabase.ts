@@ -59,6 +59,7 @@ export interface DbTask {
   estimated_hours: number | null;
   actual_hours: number | null;
   order_index: number;
+  completed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -139,7 +140,7 @@ export interface DbAttendance {
   date: string;
   check_in: string | null;
   check_out: string | null;
-  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave';
+  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'on_break' | 'checked_out';
   notes: string | null;
   created_at: string;
 }
