@@ -33,10 +33,13 @@ export default function AttendanceView() {
     return () => clearInterval(timer);
   }, []);
 
-  const fetchTodayAttendance = async () => {
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+
+  const fetchAttendanceData = async (date: string) => {
+    setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const data = await dataService.fetchAttendance(today);
+      const data = await dataService.fetchAttendance(date);
       setAttendance(data);
     } catch (err) {
       console.error('Error fetching attendance:', err);
@@ -46,10 +49,10 @@ export default function AttendanceView() {
   };
 
   useEffect(() => {
-    fetchTodayAttendance();
-  }, []);
+    fetchAttendanceData(selectedDate);
+  }, [selectedDate]);
 
-  const todayStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', weekday: 'long' });
+  const displayDateStr = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', weekday: 'long' });
 
   const teamAttendance = teamMembers.map(member => {
     const record = attendance.find(a => a.user_id === member.id);
@@ -104,7 +107,7 @@ export default function AttendanceView() {
       } else if (action === 'absent') {
         await dataService.updateAttendanceStatus(userId, 'absent');
       }
-      await fetchTodayAttendance();
+      await fetchAttendanceData(selectedDate);
     } catch (err) {
       console.error(`Action ${action} failed:`, err);
     }
@@ -148,7 +151,7 @@ export default function AttendanceView() {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: textColor }}>Attendance Dashboard</h1>
-          <p className="text-sm mt-1" style={{ color: mutedColor }}>{todayStr}</p>
+          <p className="text-sm mt-1" style={{ color: mutedColor }}>{displayDateStr}</p>
         </div>
         <div className="flex items-center gap-3">
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={exportCsv} className="btn-primary text-xs" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: textColor }}>
@@ -175,7 +178,13 @@ export default function AttendanceView() {
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 p-4 rounded-2xl glass-card">
-        <div className="flex items-center gap-4 w-full sm:w-auto">
+        <div className="flex items-center gap-4 w-full sm:w-auto flex-wrap">
+          <input 
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="input-field max-w-xs text-sm"
+          />
           <input 
             type="text" 
             placeholder="Search team member..." 
@@ -253,25 +262,29 @@ export default function AttendanceView() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {(!t.checkInTime || t.status === 'absent') && (
-                      <button onClick={() => handleAction(t.member.id, 'check_in')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors">
-                        Check In
-                      </button>
-                    )}
-                    {t.checkInTime && !t.checkOutTime && (
+                    {isToday && (
                       <>
-                        <button onClick={() => handleAction(t.member.id, t.status === 'on_break' ? 'resume' : 'break')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors">
-                          {t.status === 'on_break' ? 'Resume' : 'Break'}
-                        </button>
-                        <button onClick={() => handleAction(t.member.id, 'check_out')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors">
-                          Check Out
-                        </button>
+                        {(!t.checkInTime || t.status === 'absent') && (
+                          <button onClick={() => handleAction(t.member.id, 'check_in')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+                            Check In
+                          </button>
+                        )}
+                        {t.checkInTime && !t.checkOutTime && (
+                          <>
+                            <button onClick={() => handleAction(t.member.id, t.status === 'on_break' ? 'resume' : 'break')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors">
+                              {t.status === 'on_break' ? 'Resume' : 'Break'}
+                            </button>
+                            <button onClick={() => handleAction(t.member.id, 'check_out')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors">
+                              Check Out
+                            </button>
+                          </>
+                        )}
+                        {!t.checkInTime && t.status !== 'absent' && (
+                          <button onClick={() => handleAction(t.member.id, 'absent')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-500/10 text-gray-600 dark:text-gray-400 hover:bg-gray-500/20 transition-colors">
+                            Mark Absent
+                          </button>
+                        )}
                       </>
-                    )}
-                    {!t.checkInTime && t.status !== 'absent' && (
-                      <button onClick={() => handleAction(t.member.id, 'absent')} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-500/10 text-gray-600 dark:text-gray-400 hover:bg-gray-500/20 transition-colors">
-                        Mark Absent
-                      </button>
                     )}
                   </div>
                 </motion.div>
