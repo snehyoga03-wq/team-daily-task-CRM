@@ -34,6 +34,8 @@ export interface DbUser {
   level: number;
   streak_days: number;
   is_active: boolean;
+  is_online: boolean;
+  last_seen: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +109,9 @@ export interface DbChannel {
   name: string;
   description: string | null;
   type: 'public' | 'private' | 'direct';
+  is_group: boolean;
+  avatar_url: string | null;
+  admin_ids: string[];
   members: string[];
   created_by: string | null;
   created_at: string;
@@ -120,6 +125,8 @@ export interface DbMessage {
   attachments: string[];
   reactions: Record<string, string[]>;
   reply_to: string | null;
+  status: 'sent' | 'delivered' | 'read';
+  read_by: Record<string, string>;
   created_at: string;
 }
 

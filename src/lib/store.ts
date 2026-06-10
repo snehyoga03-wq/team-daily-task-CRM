@@ -115,9 +115,14 @@ interface AppState {
   setChannels: (channels: Channel[]) => void;
   activeChannel: string | null;
   setActiveChannel: (id: string | null) => void;
+  createGroupChannel: (name: string, members: string[], createdBy: string) => void;
+  createDirectChannel: (userId: string, currentUserId: string) => void;
   messages: Message[];
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
+  updateMessageStatus: (messageId: string, status: 'sent' | 'delivered' | 'read') => void;
+  markMessageAsReadBy: (messageId: string, userId: string) => void;
+  updateUserOnlineStatus: (userId: string, isOnline: boolean) => void;
   
   // Notifications (from Supabase)
   notifications: Notification[];
@@ -211,9 +216,58 @@ export const useAppStore = create<AppState>()(
       setChannels: (channels) => set({ channels }),
       activeChannel: null,
       setActiveChannel: (id) => set({ activeChannel: id }),
+      createGroupChannel: (name, members, createdBy) => set((s) => ({
+        channels: [...s.channels, {
+          id: `ch_${Date.now()}`,
+          name,
+          description: null,
+          type: 'private',
+          is_group: true,
+          avatar_url: null,
+          admin_ids: [createdBy],
+          members: [...members, createdBy],
+          created_by: createdBy,
+          created_at: new Date().toISOString()
+        }]
+      })),
+      createDirectChannel: (userId, currentUserId) => set((s) => {
+        const existing = s.channels.find(c => !c.is_group && c.type === 'direct' && c.members.includes(userId) && c.members.includes(currentUserId));
+        if (existing) return { activeChannel: existing.id };
+        const newChannel: Channel = {
+          id: `ch_${Date.now()}`,
+          name: 'Direct Message', // In UI we will map this to the other user's name
+          description: null,
+          type: 'direct',
+          is_group: false,
+          avatar_url: null,
+          admin_ids: [],
+          members: [userId, currentUserId],
+          created_by: currentUserId,
+          created_at: new Date().toISOString()
+        };
+        return { channels: [...s.channels, newChannel], activeChannel: newChannel.id };
+      }),
       messages: [],
       setMessages: (messages) => set({ messages }),
       addMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
+      updateMessageStatus: (messageId, status) => set((s) => ({
+        messages: s.messages.map(m => m.id === messageId ? { ...m, status } : m)
+      })),
+      markMessageAsReadBy: (messageId, userId) => set((s) => ({
+        messages: s.messages.map(m => {
+          if (m.id === messageId) {
+            return {
+              ...m,
+              read_by: { ...(m.read_by || {}), [userId]: new Date().toISOString() },
+              status: 'read'
+            };
+          }
+          return m;
+        })
+      })),
+      updateUserOnlineStatus: (userId, isOnline) => set((s) => ({
+        teamMembers: s.teamMembers.map(tm => tm.id === userId ? { ...tm, is_online: isOnline, last_seen: isOnline ? null : new Date().toISOString() } : tm)
+      })),
       
       // Notifications
       notifications: [],
