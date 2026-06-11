@@ -11,7 +11,7 @@ export default function CalendarView() {
   const isDark = theme === 'dark';
 
   const allEvents = [
-    ...events.map(e => ({ ...e, type: 'event' })),
+    ...events.map(e => ({ ...e, type: 'event', isCompleted: false })),
     ...tasks
       .filter(t => t.due_date) // Only show tasks that explicitly have a due date
       .map(t => ({

@@ -19,7 +19,7 @@ export type View =
   | 'ai'
   | 'admin';
 
-export type TaskView = 'list' | 'kanban' | 'calendar' | 'timeline';
+export type TaskView = 'list' | 'kanban' | 'calendar' | 'timeline' | 'gantt';
 export type Theme = 'dark' | 'light';
 export type CRMStage = 'new_lead' | 'interested' | 'follow_up' | 'joined_webinar' | 'converted' | 'not_interested';
 
