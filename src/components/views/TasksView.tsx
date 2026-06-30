@@ -1,6 +1,7 @@
 'use client';
 
 import { useAppStore, Task } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import TaskDetailModal from '@/components/modals/TaskDetailModal';
@@ -16,12 +17,16 @@ const statusConfig = {
 const priorityColors = { urgent: '#f43f5e', high: '#f97316', medium: '#f59e0b', low: '#10b981' };
 
 export default function TasksView() {
-  const { theme, tasks, taskView, setTaskView, updateTask, setQuickAddOpen, setSelectedTaskId } = useAppStore();
+  const { theme, tasks, taskView, setTaskView, updateTask, setQuickAddOpen, setSelectedTaskId, teams } = useAppStore();
+  const { currentUser } = useAuthStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  const [taskScope, setTaskScope] = useState<'my_tasks' | 'team_tasks'>('my_tasks');
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string>('');
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -47,6 +52,29 @@ export default function TasksView() {
   };
 
   const filteredTasks = tasks.filter(t => {
+    // Scope filter
+    if (taskScope === 'my_tasks') {
+      if (t.assignee_id !== currentUser?.id) return false;
+    } else {
+      if (selectedTeamId !== 'all') {
+        const matchesTeam = t.team_id === selectedTeamId || t.assignee?.team_id === selectedTeamId;
+        if (!matchesTeam) return false;
+      }
+    }
+
+    if (selectedDate) {
+      if (!t.due_date) return false;
+      const tDate = new Date(t.due_date);
+      const sDate = new Date(selectedDate);
+      if (
+        tDate.getFullYear() !== sDate.getFullYear() ||
+        tDate.getMonth() !== sDate.getMonth() ||
+        tDate.getDate() !== sDate.getDate()
+      ) {
+        return false;
+      }
+    }
+
     if (filter === 'all') return true;
     if (['urgent', 'high', 'medium', 'low'].includes(filter)) return t.priority === filter;
     
@@ -100,6 +128,29 @@ export default function TasksView() {
               </button>
             ))}
           </div>
+          
+          {/* Scope Switcher */}
+          <div className="flex items-center gap-2">
+            <select value={taskScope} onChange={e => {
+              setTaskScope(e.target.value as 'my_tasks' | 'team_tasks');
+              if (e.target.value === 'team_tasks' && selectedTeamId === 'all' && teams.length > 0) {
+                // Keep 'all' or select first team
+              }
+            }} className="input-field py-2 text-xs font-semibold" style={{ width: 'auto', background: isDark ? '#1e1b2e' : '#f8f7fa' }}>
+              <option value="my_tasks">👤 My Task</option>
+              <option value="team_tasks">👥 Select Team</option>
+            </select>
+            
+            {taskScope === 'team_tasks' && (
+              <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
+                <option value="all">All Teams</option>
+                {teams.map(team => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
           {/* Filter */}
           <select value={filter} onChange={e => setFilter(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
             <optgroup label="Views">
@@ -115,6 +166,17 @@ export default function TasksView() {
               <option value="low">Low</option>
             </optgroup>
           </select>
+          
+          {/* Date Filter */}
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="input-field py-1.5 text-xs"
+            style={{ width: 'auto' }}
+            title="Filter by due date"
+          />
+
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSelectedTaskId('new')} className="btn-primary text-xs">
             ＋ Add Task
           </motion.button>
