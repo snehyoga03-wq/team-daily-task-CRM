@@ -37,7 +37,7 @@ export async function createTask(task: Partial<DbTask>) {
     const res = await supabase.from('tasks').insert(fallbackTask).select().single();
     data = res.data;
     error = res.error;
-    if (!error) alert("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
+    if (!error) console.warn("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
   }
 
   if (error) throw error;
@@ -61,7 +61,7 @@ export async function updateTask(id: string, updates: Partial<DbTask>) {
     const res = await supabase.from('tasks').update(fallbackUpdates).eq('id', id).select().single();
     data = res.data;
     error = res.error;
-    if (!error) alert("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
+    if (!error) console.warn("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
   }
 
   if (error) throw error;

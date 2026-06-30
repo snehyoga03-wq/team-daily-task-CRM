@@ -89,7 +89,14 @@ export default function Home() {
 
     // Subscribe to realtime updates
     const tasksSub = dataService.subscribeToTasks(() => {
-      dataService.fetchTasks().then(setTasks).catch(console.error);
+      dataService.fetchTasks().then(fetchedTasks => {
+        const currentTasks = useAppStore.getState().tasks;
+        const updatedTasks = fetchedTasks.map(ft => {
+          const existing = currentTasks.find(t => t.id === ft.id);
+          return existing ? { ...ft, subtasks: existing.subtasks } : ft;
+        });
+        setTasks(updatedTasks);
+      }).catch(console.error);
     });
     const leadsSub = dataService.subscribeToLeads(() => {
       dataService.fetchLeads().then(setLeads).catch(console.error);

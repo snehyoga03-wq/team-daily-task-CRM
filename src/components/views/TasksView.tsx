@@ -4,6 +4,7 @@ import { useAppStore, Task } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import * as dataService from '@/lib/dataService';
 import TaskDetailModal from '@/components/modals/TaskDetailModal';
 import GanttBoard from './GanttBoard';
 
@@ -90,16 +91,28 @@ export default function TasksView() {
   const views = ['kanban', 'list', 'gantt'] as const;
 
   const handleDragStart = (taskId: string) => setDraggedTask(taskId);
-  const handleDrop = (status: Task['status']) => {
+  const handleDrop = async (status: Task['status']) => {
     if (draggedTask) {
-      updateTask(draggedTask, { status });
+      const taskId = draggedTask;
       setDraggedTask(null);
+      updateTask(taskId, { status });
+      try {
+        await dataService.updateTask(taskId, { status });
+      } catch (err) {
+        console.error('Failed to update task on drop', err);
+      }
     }
   };
   
-  const handleMarkComplete = (task: Task, e: React.MouseEvent) => {
+  const handleMarkComplete = async (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
-    updateTask(task.id, { status: 'done', completed_at: new Date().toISOString() } as Partial<Task>);
+    const updates = { status: 'done' } as Partial<Task>;
+    updateTask(task.id, updates);
+    try {
+      await dataService.updateTask(task.id, updates);
+    } catch (err) {
+      console.error('Failed to mark task complete', err);
+    }
   };
 
   return (
