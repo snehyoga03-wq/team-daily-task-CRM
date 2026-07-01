@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { useAuthStore } from '@/lib/auth';
+import { useAuthStore, cleanPhoneNumber } from '@/lib/auth';
 import { useRequireAdmin } from '@/lib/useAdmin';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useCallback } from 'react';
@@ -143,7 +143,7 @@ export default function AdminView() {
     if (!userForm.full_name.trim() || !userForm.phone.trim()) return;
     setLoading(true);
     try {
-      const cleanPhone = userForm.phone.replace(/[\s\-\+]/g, '').replace(/^91/, '');
+      const cleanPhone = cleanPhoneNumber(userForm.phone);
       await dataService.createUser({
         full_name: userForm.full_name.trim(),
         phone: cleanPhone,
@@ -170,12 +170,16 @@ export default function AdminView() {
     if (!editingUser || !userForm.full_name.trim()) return;
     setLoading(true);
     try {
-      await dataService.updateUser(editingUser.id, {
+      const updates: Record<string, any> = {
         full_name: userForm.full_name.trim(),
         email: userForm.email.trim() || null,
         role: userForm.role,
         team_id: userForm.team_id || null,
-      });
+      };
+      if (userForm.phone.trim()) {
+        updates.phone = cleanPhoneNumber(userForm.phone);
+      }
+      await dataService.updateUser(editingUser.id, updates);
       await loadAllUsers();
       const members = await dataService.fetchTeamMembers();
       setTeamMembers(members);
@@ -424,8 +428,7 @@ export default function AdminView() {
                   <label className="text-[11px] font-medium block mb-1.5" style={{ color: mutedColor }}>Phone Number *</label>
                   <input type="tel" value={userForm.phone} onChange={e => setUserForm({ ...userForm, phone: e.target.value })}
                     placeholder="e.g. 9876543210"
-                    disabled={!!editingUser}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none disabled:opacity-50"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
                     style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
                   />
                 </div>
@@ -468,7 +471,7 @@ export default function AdminView() {
                 >Cancel</button>
                 <motion.button whileTap={{ scale: 0.97 }}
                   onClick={editingUser ? handleUpdateUser : handleCreateUser}
-                  disabled={loading || !userForm.full_name.trim() || (!editingUser && !userForm.phone.trim())}
+                  disabled={loading || !userForm.full_name.trim() || !userForm.phone.trim()}
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
                   style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)' }}
                 >{loading ? '...' : (editingUser ? 'Save Changes' : 'Add Member')}</motion.button>
