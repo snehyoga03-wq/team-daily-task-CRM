@@ -3,6 +3,7 @@
 import { useAppStore } from '@/lib/store';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import CuteRobotMascot from '@/components/common/CuteRobotMascot';
 
 export default function AIView() {
   const { theme } = useAppStore();
@@ -45,15 +46,19 @@ export default function AIView() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold gradient-text">🤖 AI Assistant</h1>
-        <p className="text-xs mt-1" style={{ color: mutedColor }}>Your intelligent productivity companion</p>
+      <div className="mb-4 flex items-center gap-3">
+        <CuteRobotMascot emotion="happy" size="md" />
+        <div>
+          <h1 className="text-xl font-bold gradient-text">Yogi AI Suite</h1>
+          <p className="text-xs mt-0.5" style={{ color: mutedColor }}>Your intelligent productivity companion</p>
+        </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
         {messages.map((msg, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {msg.role === 'ai' && <CuteRobotMascot emotion={i === 0 ? 'love' : 'happy'} size="sm" className="flex-shrink-0 mt-1" />}
             <div className="max-w-[80%] p-4 rounded-2xl" style={{
               background: msg.role === 'user' ? 'linear-gradient(135deg, #9333ea, #7e22ce)' : (isDark ? 'rgba(26,26,37,0.8)' : 'rgba(255,255,255,0.8)'),
               color: msg.role === 'user' ? 'white' : textColor,

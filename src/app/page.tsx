@@ -24,6 +24,7 @@ import SettingsView from '@/components/views/SettingsView';
 import AIView from '@/components/views/AIView';
 import LeadsView from '@/components/views/LeadsView';
 import AdminView from '@/components/views/AdminView';
+import FloatingAIAssistant from '@/components/common/FloatingAIAssistant';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
@@ -242,6 +243,7 @@ export default function Home() {
 
       {/* Modals */}
       <QuickAddModal />
+      <FloatingAIAssistant />
     </div>
   );
 }
