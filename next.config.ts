@@ -3,6 +3,10 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  reactStrictMode: false, // Prevents double-rendering of heavy charts and animations in dev mode
+  experimental: {
+    optimizePackageImports: ["framer-motion", "recharts", "date-fns"],
+  },
   turbopack: {
     root: typeof __dirname !== "undefined" ? path.resolve(__dirname) : path.resolve("."),
   },
