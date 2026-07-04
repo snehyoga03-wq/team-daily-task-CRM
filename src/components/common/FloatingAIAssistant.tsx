@@ -199,7 +199,7 @@ export default function FloatingAIAssistant() {
     setTimeout(() => {
       const lower = text.toLowerCase();
       let aiResponse: string;
-      let actions: { label: string; view?: View }[] | undefined;
+      let actions: { label: string; view?: View; action?: () => void }[] | undefined;
       let emotion: RobotEmotion = 'happy';
 
       // 1. Task analysis queries

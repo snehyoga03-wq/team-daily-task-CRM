@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as dataService from '@/lib/dataService';
 import { DbTeam, DbUser } from '@/lib/supabase';
 
-type AdminTab = 'teams' | 'users' | 'overview' | 'settings';
+type AdminTab = 'teams' | 'users' | 'kpi' | 'overview' | 'settings';
 
 // ─── Color presets for teams ────────────────────────────────────────
 const TEAM_COLORS = [
@@ -30,6 +30,10 @@ export default function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('teams');
   const [allUsers, setAllUsers] = useState<DbUser[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // ─── KPI Calculator State ─────────────────────────────────────────
+  const [kpiPodcastsWeek, setKpiPodcastsWeek] = useState<number>(2);
+  const [kpiPodcastsMonth, setKpiPodcastsMonth] = useState<number>(8);
 
   // ─── Modals ───────────────────────────────────────────────────────
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -271,6 +275,7 @@ export default function AdminView() {
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'teams', label: 'Teams', icon: '🏢' },
     { id: 'users', label: 'Users', icon: '👥' },
+    { id: 'kpi', label: 'KPIs & Targets', icon: '🎯' },
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ];
@@ -295,13 +300,13 @@ export default function AdminView() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 p-1 rounded-2xl" style={{ background: isDark ? 'rgba(30,30,45,0.5)' : 'rgba(240,238,250,0.7)' }}>
+      <div className="flex gap-1 p-1 rounded-2xl overflow-x-auto" style={{ background: isDark ? 'rgba(30,30,45,0.5)' : 'rgba(240,238,250,0.7)' }}>
         {tabs.map(tab => (
           <motion.button
             key={tab.id}
             whileTap={{ scale: 0.97 }}
             onClick={() => setActiveTab(tab.id)}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all relative"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all relative whitespace-nowrap"
             style={{
               color: activeTab === tab.id ? textColor : mutedColor,
               background: activeTab === tab.id ? (isDark ? 'rgba(139,92,246,0.15)' : '#fff') : 'transparent',
@@ -324,6 +329,7 @@ export default function AdminView() {
         <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
           {activeTab === 'teams' && renderTeamsTab()}
           {activeTab === 'users' && renderUsersTab()}
+          {activeTab === 'kpi' && renderKpiTab()}
           {activeTab === 'overview' && renderOverviewTab()}
           {activeTab === 'settings' && renderSettingsTab()}
         </motion.div>
@@ -806,6 +812,315 @@ export default function AdminView() {
               <span className="text-xs font-bold w-10 text-right" style={{ color: '#71717a' }}>
                 {allUsers.filter(u => !u.team_id && u.is_active).length}
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TAB: Production KPIs & Output Targets
+  // ═══════════════════════════════════════════════════════════════════
+  function renderKpiTab() {
+    const weeklyMinReels = Math.max(0, 30 - kpiPodcastsWeek * 4);
+    const weeklyExpReels = Math.max(0, 36 - kpiPodcastsWeek * 4);
+    const monthlyMinReels = Math.max(0, 120 - kpiPodcastsMonth * 4);
+    const monthlyExpReels = Math.max(0, 144 - kpiPodcastsMonth * 4);
+
+    return (
+      <div className="space-y-6">
+        {/* Banner Section */}
+        <div className="rounded-3xl p-6 relative overflow-hidden" style={{
+          background: isDark ? 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.15))' : 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(6,182,212,0.08))',
+          border: `1px solid ${isDark ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.2)'}`,
+        }}>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">🎯</span>
+                <h2 className="text-lg font-bold" style={{ color: textColor }}>Production KPI & Output Guidelines</h2>
+              </div>
+              <p className="text-xs max-w-2xl leading-relaxed" style={{ color: mutedColor }}>
+                Set benchmarks and track expected content output for editors. Standard targets balance Reels and Podcast edits with automatic workload conversion rules.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-3.5 py-2 rounded-2xl self-stretch md:self-auto justify-center">
+              <span className="text-xs font-bold text-purple-400">⚡ Conversion Rule: 1 Podcast = 4 Reels</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Target Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Daily Card */}
+          <motion.div whileHover={{ y: -3 }} className="rounded-3xl p-5 space-y-4" style={{
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            backdropFilter: 'blur(20px)',
+          }}>
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-cyan-500/10 text-cyan-400 text-lg">
+                🌅
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                Daily Benchmark
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-semibold" style={{ color: mutedColor }}>Expected Output</p>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-black text-cyan-400">6 reels</span>
+              </div>
+            </div>
+            <div className="pt-3 border-t flex items-center justify-between text-xs" style={{ borderColor }}>
+              <span style={{ color: mutedColor }}>Minimum Required:</span>
+              <span className="font-bold text-cyan-500">6 reels</span>
+            </div>
+          </motion.div>
+
+          {/* Weekly Card */}
+          <motion.div whileHover={{ y: -3 }} className="rounded-3xl p-5 space-y-4" style={{
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            backdropFilter: 'blur(20px)',
+          }}>
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-purple-500/10 text-purple-400 text-lg">
+                📅
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                Weekly Target
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-semibold" style={{ color: mutedColor }}>Expected Output</p>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-black text-purple-400">36 reels</span>
+                <span className="text-xs" style={{ color: mutedColor }}>or 2 podcasts</span>
+              </div>
+            </div>
+            <div className="pt-3 border-t flex items-center justify-between text-xs" style={{ borderColor }}>
+              <span style={{ color: mutedColor }}>Minimum Required:</span>
+              <span className="font-bold text-purple-500">30 reels / 2 podcasts</span>
+            </div>
+          </motion.div>
+
+          {/* Monthly Card */}
+          <motion.div whileHover={{ y: -3 }} className="rounded-3xl p-5 space-y-4" style={{
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            backdropFilter: 'blur(20px)',
+          }}>
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-500/10 text-emerald-400 text-lg">
+                🗓️
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Monthly Target
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-semibold" style={{ color: mutedColor }}>Expected Output</p>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-black text-emerald-400">144 reels</span>
+                <span className="text-xs" style={{ color: mutedColor }}>or 8 podcasts</span>
+              </div>
+            </div>
+            <div className="pt-3 border-t flex items-center justify-between text-xs" style={{ borderColor }}>
+              <span style={{ color: mutedColor }}>Minimum Required:</span>
+              <span className="font-bold text-emerald-500">120 reels / 8 podcasts</span>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Dynamic Calculator & Conversion Simulator */}
+        <div className="rounded-3xl p-6 space-y-6" style={{
+          background: cardBg,
+          border: `1px solid ${borderColor}`,
+          backdropFilter: 'blur(20px)',
+        }}>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 border-b" style={{ borderColor }}>
+            <div>
+              <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: textColor }}>
+                <span>🧮 Dynamic Reel & Podcast Target Simulator</span>
+              </h3>
+              <p className="text-xs mt-1" style={{ color: mutedColor }}>
+                Important: If anyone edits podcasts in a week, then the reel count will adjust accordingly (1 podcast = 4 reels).
+              </p>
+            </div>
+            <div className="px-3 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              💡 Live Adjustment Calculator
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Weekly Simulator */}
+            <div className="p-5 rounded-2xl space-y-4" style={{ background: isDark ? 'rgba(20,20,30,0.5)' : 'rgba(245,243,255,0.6)', border: `1px solid ${borderColor}` }}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold" style={{ color: textColor }}>📅 Weekly Podcast Adjustment</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-purple-500/10 text-purple-400">{kpiPodcastsWeek} Podcasts</span>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px]" style={{ color: mutedColor }}>
+                  <span>Podcasts Completed:</span>
+                  <span className="font-bold text-purple-400">{kpiPodcastsWeek} (equals {kpiPodcastsWeek * 4} reels)</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="7"
+                  value={kpiPodcastsWeek}
+                  onChange={e => setKpiPodcastsWeek(parseInt(e.target.value) || 0)}
+                  className="w-full accent-purple-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px]" style={{ color: mutedColor }}>
+                  <span>0 podcasts</span>
+                  <span>7 podcasts</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl space-y-2" style={{ background: isDark ? 'rgba(139,92,246,0.1)' : '#fff', border: '1px solid rgba(139,92,246,0.2)' }}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium" style={{ color: mutedColor }}>Your Weekly Minimum Target:</span>
+                  <span className="font-bold text-purple-400">{weeklyMinReels} reels + {kpiPodcastsWeek} podcasts</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]" style={{ color: mutedColor }}>
+                  <span>Expected Target:</span>
+                  <span>{weeklyExpReels} reels + {kpiPodcastsWeek} podcasts</span>
+                </div>
+              </div>
+              <p className="text-[11px] italic" style={{ color: mutedColor }}>
+                * Example: If you complete 2 podcasts in a week, then your weekly minimum reel target becomes 22 reels + 2 podcasts.
+              </p>
+            </div>
+
+            {/* Monthly Simulator */}
+            <div className="p-5 rounded-2xl space-y-4" style={{ background: isDark ? 'rgba(20,20,30,0.5)' : 'rgba(245,243,255,0.6)', border: `1px solid ${borderColor}` }}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold" style={{ color: textColor }}>🗓️ Monthly Podcast Adjustment</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400">{kpiPodcastsMonth} Podcasts</span>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px]" style={{ color: mutedColor }}>
+                  <span>Podcasts Completed:</span>
+                  <span className="font-bold text-emerald-400">{kpiPodcastsMonth} (equals {kpiPodcastsMonth * 4} reels)</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="30"
+                  value={kpiPodcastsMonth}
+                  onChange={e => setKpiPodcastsMonth(parseInt(e.target.value) || 0)}
+                  className="w-full accent-emerald-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px]" style={{ color: mutedColor }}>
+                  <span>0 podcasts</span>
+                  <span>30 podcasts</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl space-y-2" style={{ background: isDark ? 'rgba(16,185,129,0.1)' : '#fff', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium" style={{ color: mutedColor }}>Your Monthly Minimum Target:</span>
+                  <span className="font-bold text-emerald-400">{monthlyMinReels} reels + {kpiPodcastsMonth} podcasts</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]" style={{ color: mutedColor }}>
+                  <span>Expected Target:</span>
+                  <span>{monthlyExpReels} reels + {kpiPodcastsMonth} podcasts</span>
+                </div>
+              </div>
+              <p className="text-[11px] italic" style={{ color: mutedColor }}>
+                * Example: If you complete 8 podcasts in a month, then your monthly minimum reel target becomes 88 reels + 8 podcasts.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Report SOP Guidelines Card */}
+        <div className="rounded-3xl p-6 space-y-5 relative overflow-hidden" style={{
+          background: cardBg,
+          border: `1px solid ${borderColor}`,
+          backdropFilter: 'blur(20px)',
+        }}>
+          <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor }}>
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">📋</span>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: textColor }}>Daily Report & Planned Tasks SOP</h3>
+                <p className="text-xs" style={{ color: mutedColor }}>Standard operating procedure for daily updates by content editors</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Mandatory Checklist
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-2xl flex items-start gap-3" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${borderColor}` }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-cyan-500/10 text-cyan-400 flex-shrink-0 text-sm">
+                1️⃣
+              </div>
+              <div>
+                <h4 className="text-xs font-bold mb-1" style={{ color: textColor }}>Mention Daily Reels in Planned Tasks</h4>
+                <p className="text-xs leading-relaxed" style={{ color: mutedColor }}>
+                  In the daily report, under <strong className="text-cyan-400 font-semibold">Planned Tasks</strong>, make sure you mention your <strong className="text-cyan-400 font-semibold">6 reels</strong> for the day.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl flex items-start gap-3" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${borderColor}` }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-purple-500/10 text-purple-400 flex-shrink-0 text-sm">
+                2️⃣
+              </div>
+              <div>
+                <h4 className="text-xs font-bold mb-1" style={{ color: textColor }}>Podcasts Mentioned at Start</h4>
+                <p className="text-xs leading-relaxed" style={{ color: mutedColor }}>
+                  If you have a podcast assigned on that day, mention it <strong className="text-purple-400 font-semibold">at the very start</strong> of your Planned Tasks.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl flex items-start gap-3" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${borderColor}` }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-400 flex-shrink-0 text-sm">
+                3️⃣
+              </div>
+              <div>
+                <h4 className="text-xs font-bold mb-1" style={{ color: textColor }}>End of Day Flexibility</h4>
+                <p className="text-xs leading-relaxed" style={{ color: mutedColor }}>
+                  Any changes, reassignments, or schedule shifts during working hours can be <strong className="text-amber-400 font-semibold">updated at the end of the day</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl flex items-start gap-3" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${borderColor}` }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400 flex-shrink-0 text-sm">
+                4️⃣
+              </div>
+              <div>
+                <h4 className="text-xs font-bold mb-1.5" style={{ color: textColor }}>Mandatory Status Breakdown</h4>
+                <div className="space-y-1 text-xs" style={{ color: mutedColor }}>
+                  <div className="flex items-center gap-1.5"><span className="text-emerald-400 font-bold">✓</span> <strong style={{ color: textColor }}>What you completed</strong></div>
+                  <div className="flex items-center gap-1.5"><span className="text-amber-400 font-bold">✗</span> <strong style={{ color: textColor }}>What you couldn’t complete</strong></div>
+                  <div className="flex items-center gap-1.5"><span className="text-rose-400 font-bold">💬</span> <strong style={{ color: textColor }}>Reason</strong> if any reel or podcast is not completed</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sample Format Preview */}
+          <div className="p-4 rounded-2xl space-y-2" style={{ background: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(240,238,250,0.8)', border: `1px dashed ${borderColor}` }}>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-purple-400">📝 Sample Daily Report Template</p>
+            <div className="font-mono text-xs space-y-1" style={{ color: textColor }}>
+              <p className="font-semibold text-cyan-400">📌 Planned Tasks:</p>
+              <p>• [Podcast] Client Interview Ep. 42 (At the start)</p>
+              <p>• 6 Reels editing (Daily target)</p>
+              <p className="font-semibold text-emerald-400 mt-2">✅ Completed:</p>
+              <p>• 1 Podcast (Ep. 42) + 4 Reels completed</p>
+              <p className="font-semibold text-rose-400 mt-2">⏳ Could not complete & Reason:</p>
+              <p>• 2 Reels pending – Reason: Waiting for b-roll assets and client feedback.</p>
             </div>
           </div>
         </div>
