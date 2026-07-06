@@ -30,6 +30,7 @@ export interface DbUser {
   avatar_url: string | null;
   role: string;
   team_id: string | null;
+  tag?: string | null;
   xp_points: number;
   level: number;
   streak_days: number;

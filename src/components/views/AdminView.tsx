@@ -45,10 +45,12 @@ export default function AdminView() {
   const [editingTeam, setEditingTeam] = useState<DbTeam | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<DbUser | null>(null);
+  const [selectedTeamForMembers, setSelectedTeamForMembers] = useState<DbTeam | null>(null);
+  const [assigningUserId, setAssigningUserId] = useState<string>('');
 
   // ─── Form state ───────────────────────────────────────────────────
   const [teamForm, setTeamForm] = useState({ name: '', description: '', color: '#8b5cf6' });
-  const [userForm, setUserForm] = useState({ full_name: '', phone: '', email: '', role: 'member', team_id: '' });
+  const [userForm, setUserForm] = useState({ full_name: '', phone: '', email: '', role: 'member', team_id: '', tag: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -123,6 +125,9 @@ export default function AdminView() {
     if (!confirm('Delete this team? Members will be unassigned.')) return;
     setLoading(true);
     try {
+      if (selectedTeamForMembers?.id === teamId) {
+        setSelectedTeamForMembers(null);
+      }
       await dataService.deleteTeam(teamId);
       await loadTeams();
       await loadAllUsers();
@@ -131,6 +136,35 @@ export default function AdminView() {
       setTeamMembers(members);
     } catch (err) {
       console.error('Failed to delete team:', err);
+    }
+    setLoading(false);
+  };
+
+  const handleAssignUserToTeam = async () => {
+    if (!assigningUserId || !selectedTeamForMembers) return;
+    setLoading(true);
+    try {
+      await dataService.updateUser(assigningUserId, { team_id: selectedTeamForMembers.id });
+      await loadAllUsers();
+      const members = await dataService.fetchTeamMembers();
+      setTeamMembers(members);
+      setAssigningUserId('');
+    } catch (err) {
+      console.error('Failed to assign user to team:', err);
+    }
+    setLoading(false);
+  };
+
+  const handleRemoveFromTeam = async (user: DbUser) => {
+    if (!confirm(`Remove ${user.full_name} from this team?`)) return;
+    setLoading(true);
+    try {
+      await dataService.updateUser(user.id, { team_id: null });
+      await loadAllUsers();
+      const members = await dataService.fetchTeamMembers();
+      setTeamMembers(members);
+    } catch (err) {
+      console.error('Failed to remove user from team:', err);
     }
     setLoading(false);
   };
@@ -159,6 +193,7 @@ export default function AdminView() {
         email: userForm.email.trim() || null,
         role: userForm.role,
         team_id: userForm.team_id || null,
+        tag: userForm.tag.trim() || null,
         xp_points: 0,
         level: 1,
         streak_days: 0,
@@ -167,7 +202,7 @@ export default function AdminView() {
       await loadAllUsers();
       const members = await dataService.fetchTeamMembers();
       setTeamMembers(members);
-      setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '' });
+      setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '', tag: '' });
       setShowUserModal(false);
     } catch (err: any) {
       alert(err.message || 'Failed to create user');
@@ -184,6 +219,7 @@ export default function AdminView() {
         email: userForm.email.trim() || null,
         role: userForm.role,
         team_id: userForm.team_id || null,
+        tag: userForm.tag.trim() || null,
       };
       if (userForm.phone.trim()) {
         updates.phone = cleanPhoneNumber(userForm.phone);
@@ -194,7 +230,7 @@ export default function AdminView() {
       setTeamMembers(members);
       setEditingUser(null);
       setShowUserModal(false);
-      setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '' });
+      setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '', tag: '' });
     } catch (err) {
       console.error('Failed to update user:', err);
     }
@@ -228,13 +264,14 @@ export default function AdminView() {
       email: user.email || '',
       role: user.role,
       team_id: user.team_id || '',
+      tag: user.tag || '',
     });
     setShowUserModal(true);
   };
 
   const openNewUser = () => {
     setEditingUser(null);
-    setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '' });
+    setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '', tag: '' });
     setShowUserModal(true);
   };
 
@@ -404,7 +441,7 @@ export default function AdminView() {
       <AnimatePresence>
         {showTeamModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
             onClick={() => setShowTeamModal(false)}
           >
@@ -473,7 +510,7 @@ export default function AdminView() {
       <AnimatePresence>
         {showUserModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
             onClick={() => setShowUserModal(false)}
           >
@@ -508,6 +545,14 @@ export default function AdminView() {
                   <input type="email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })}
                     placeholder="email@example.com"
                     className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                    style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium block mb-1.5" style={{ color: mutedColor }}>User Tag / Member Code (e.g. SM-02)</label>
+                  <input type="text" value={userForm.tag || ''} onChange={e => setUserForm({ ...userForm, tag: e.target.value })}
+                    placeholder="e.g. SM-02, SM-03, SM-04"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none font-mono uppercase font-bold"
                     style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
                   />
                 </div>
@@ -574,8 +619,13 @@ export default function AdminView() {
                     {selectedKpiUser.full_name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="text-base font-bold flex items-center gap-2" style={{ color: textColor }}>
+                    <h3 className="text-base font-bold flex items-center gap-2 flex-wrap" style={{ color: textColor }}>
                       <span>{selectedKpiUser.full_name}</span>
+                      {selectedKpiUser.tag && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded font-extrabold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          {selectedKpiUser.tag}
+                        </span>
+                      )}
                       <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${getTeamColor(selectedKpiUser.team_id)}20`, color: getTeamColor(selectedKpiUser.team_id) }}>
                         {getTeamName(selectedKpiUser.team_id)}
                       </span>
@@ -717,6 +767,247 @@ export default function AdminView() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ─── Selected Team Members & Management Modal ───────────────── */}
+      <AnimatePresence>
+        {selectedTeamForMembers && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setSelectedTeamForMembers(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+          >
+            {(() => {
+              const currentTeam = teams.find(t => t.id === selectedTeamForMembers.id) || selectedTeamForMembers;
+              const teamMembersList = allUsers.filter(u => u.team_id === currentTeam.id);
+              const activeMembersCount = teamMembersList.filter(u => u.is_active).length;
+              const availableUsersToAdd = allUsers.filter(u => u.team_id !== currentTeam.id && u.is_active);
+              const teamTasksCount = tasks.filter(t => teamMembersList.some(m => m.id === t.assignee_id)).length;
+
+              return (
+                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                  onClick={e => e.stopPropagation()}
+                  className="w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-5 max-h-[85vh] flex flex-col overflow-hidden border"
+                  style={{ background: isDark ? '#181824' : '#ffffff', borderColor }}
+                >
+                  {/* Modal Header Banner */}
+                  <div className="flex items-center justify-between pb-4 border-b flex-shrink-0" style={{ borderColor }}>
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg flex-shrink-0"
+                        style={{ background: `linear-gradient(135deg, ${currentTeam.color}, ${currentTeam.color}99)` }}
+                      >
+                        {currentTeam.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-bold truncate" style={{ color: textColor }}>{currentTeam.name}</h3>
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wide"
+                            style={{ background: `${currentTeam.color}20`, color: currentTeam.color }}
+                          >
+                            Team
+                          </span>
+                        </div>
+                        <p className="text-xs mt-1 truncate" style={{ color: mutedColor }}>
+                          {currentTeam.description || 'No description provided'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => openEditTeam(currentTeam)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+                        style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: textColor }}
+                      >
+                        <span>✏️</span> <span className="hidden sm:inline">Edit Team</span>
+                      </motion.button>
+                      <button
+                        onClick={() => setSelectedTeamForMembers(null)}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-sm transition-colors hover:bg-gray-500/20"
+                        style={{ color: mutedColor }}
+                      >✕</button>
+                    </div>
+                  </div>
+
+                  {/* Stats Summary Bar */}
+                  <div className="grid grid-cols-3 gap-3 flex-shrink-0">
+                    <div className="p-3 rounded-2xl border text-center" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderColor }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: mutedColor }}>Total Members</p>
+                      <p className="text-xl font-black mt-0.5" style={{ color: currentTeam.color }}>{teamMembersList.length}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl border text-center" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderColor }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: mutedColor }}>Active Members</p>
+                      <p className="text-xl font-black text-emerald-500 mt-0.5">{activeMembersCount}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl border text-center" style={{ background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderColor }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: mutedColor }}>Assigned Tasks</p>
+                      <p className="text-xl font-black text-amber-500 mt-0.5">{teamTasksCount}</p>
+                    </div>
+                  </div>
+
+                  {/* Add Member Bar */}
+                  <div className="p-3.5 rounded-2xl border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 flex-shrink-0"
+                    style={{ background: isDark ? 'rgba(139,92,246,0.05)' : '#f5f3ff', borderColor: isDark ? 'rgba(139,92,246,0.2)' : '#ddd6fe' }}
+                  >
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-sm">➕</span>
+                      <select
+                        value={assigningUserId}
+                        onChange={e => setAssigningUserId(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-xl text-xs outline-none cursor-pointer border"
+                        style={{ background: isDark ? '#12121a' : '#ffffff', color: textColor, borderColor }}
+                      >
+                        <option value="">Assign existing user to team...</option>
+                        {availableUsersToAdd.map(u => (
+                          <option key={u.id} value={u.id}>{u.full_name} ({u.role}) - {getTeamName(u.team_id)}</option>
+                        ))}
+                      </select>
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                        onClick={handleAssignUserToTeam}
+                        disabled={!assigningUserId || loading}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-40"
+                        style={{ background: currentTeam.color }}
+                      >
+                        Assign
+                      </motion.button>
+                    </div>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        setEditingUser(null);
+                        setUserForm({ full_name: '', phone: '', email: '', role: 'member', team_id: currentTeam.id, tag: '' });
+                        setShowUserModal(true);
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+                      style={{ background: isDark ? '#1e1e2e' : '#fff', color: textColor, borderColor }}
+                    >
+                      <span>✨</span> New Member
+                    </motion.button>
+                  </div>
+
+                  {/* Members List */}
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider flex items-center justify-between" style={{ color: mutedColor }}>
+                      <span>Team Members ({teamMembersList.length})</span>
+                      <span className="text-[10px] font-normal">Click actions to edit member right here</span>
+                    </h4>
+
+                    {teamMembersList.length === 0 ? (
+                      <div className="text-center py-10 rounded-2xl border border-dashed" style={{ borderColor }}>
+                        <span className="text-3xl">👥</span>
+                        <p className="text-xs font-medium mt-2" style={{ color: mutedColor }}>No members in this team yet.</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: mutedColor }}>Use the box above to assign existing users or create a new member.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {teamMembersList.map(member => (
+                          <div key={member.id}
+                            className="p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all hover:shadow-md"
+                            style={{
+                              background: isDark ? 'rgba(255,255,255,0.02)' : '#ffffff',
+                              borderColor,
+                              opacity: member.is_active ? 1 : 0.6,
+                            }}
+                          >
+                            {/* Member Info */}
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="relative flex-shrink-0">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow"
+                                  style={{ background: `linear-gradient(135deg, ${currentTeam.color}, ${currentTeam.color}88)` }}
+                                >
+                                  {member.full_name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+                                  style={{
+                                    background: member.is_active ? '#10b981' : '#ef4444',
+                                    borderColor: isDark ? '#181824' : '#fff',
+                                  }}
+                                />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-bold truncate flex items-center gap-1.5" style={{ color: textColor }}>
+                                    <span>{member.full_name}</span>
+                                    {member.tag && (
+                                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-extrabold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                        {member.tag}
+                                      </span>
+                                    )}
+                                  </p>
+                                  <span className="text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase"
+                                    style={{
+                                      background: member.role === 'admin' ? 'rgba(139,92,246,0.15)' : 'rgba(6,182,212,0.15)',
+                                      color: member.role === 'admin' ? '#8b5cf6' : '#06b6d4',
+                                    }}
+                                  >
+                                    {member.role === 'admin' ? '🛡️ Admin' : 'Member'}
+                                  </span>
+                                  {!member.is_active && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 font-bold">INACTIVE</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 text-[11px] truncate flex-wrap" style={{ color: mutedColor }}>
+                                  {member.phone && <span>📱 {member.phone}</span>}
+                                  {member.email && <span>✉️ {member.email}</span>}
+                                  <span>⭐ Level {member.level || 1} ({member.xp_points || 0} XP)</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions ("able to edit here itself") */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                onClick={() => openEditUser(member)}
+                                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
+                                style={{ background: isDark ? '#2a2a3a' : '#f1f5f9', color: textColor }}
+                                title="Edit user details"
+                              >
+                                <span>✏️</span> <span className="hidden md:inline">Edit</span>
+                              </motion.button>
+                              
+                              {member.id !== currentUser?.id && (
+                                <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleToggleUserStatus(member)}
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors"
+                                  style={{ background: member.is_active ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)' }}
+                                  title={member.is_active ? 'Deactivate' : 'Reactivate'}
+                                >
+                                  {member.is_active ? '🚫' : '✅'}
+                                </motion.button>
+                              )}
+
+                              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                onClick={() => handleRemoveFromTeam(member)}
+                                className="w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors text-rose-500 hover:bg-rose-500/10"
+                                style={{ background: isDark ? 'rgba(244,63,94,0.05)' : '#fff1f2' }}
+                                title="Remove from team"
+                              >
+                                ❌
+                              </motion.button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="pt-3 border-t flex items-center justify-between flex-shrink-0" style={{ borderColor }}>
+                    <span className="text-xs" style={{ color: mutedColor }}>
+                      💡 Tip: Removing a member unassigns them without deleting their profile.
+                    </span>
+                    <button
+                      onClick={() => setSelectedTeamForMembers(null)}
+                      className="px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-transform hover:scale-105"
+                      style={{ background: currentTeam.color }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 
@@ -750,7 +1041,8 @@ export default function AdminView() {
               <motion.div key={team.id}
                 initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="rounded-2xl p-5 space-y-4 group cursor-pointer transition-all"
+                onClick={() => setSelectedTeamForMembers(team)}
+                className="rounded-2xl p-5 space-y-4 group cursor-pointer transition-all hover:scale-[1.01] hover:shadow-lg"
                 style={{
                   background: cardBg,
                   border: `1px solid ${borderColor}`,
@@ -772,12 +1064,12 @@ export default function AdminView() {
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <motion.button whileTap={{ scale: 0.9 }}
-                      onClick={() => openEditTeam(team)}
+                      onClick={(e) => { e.stopPropagation(); openEditTeam(team); }}
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
                       style={{ background: isDark ? '#2a2a3a' : '#e5e2f0' }}
                     >✏️</motion.button>
                     <motion.button whileTap={{ scale: 0.9 }}
-                      onClick={() => handleDeleteTeam(team.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteTeam(team.id); }}
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
                       style={{ background: 'rgba(244,63,94,0.1)' }}
                     >🗑️</motion.button>
@@ -785,16 +1077,21 @@ export default function AdminView() {
                 </div>
 
                 {/* Member Count */}
-                <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor }}>
-                  <div className="flex -space-x-2">
-                    {allUsers.filter(u => u.team_id === team.id && u.is_active).slice(0, 4).map(u => (
-                      <div key={u.id} className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] text-white font-bold"
-                        style={{ background: team.color, borderColor: isDark ? '#1a1a2e' : '#fff' }}
-                      >{u.full_name.charAt(0)}</div>
-                    ))}
+                <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor }}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex -space-x-2">
+                      {allUsers.filter(u => u.team_id === team.id && u.is_active).slice(0, 4).map(u => (
+                        <div key={u.id} className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] text-white font-bold"
+                          style={{ background: team.color, borderColor: isDark ? '#1a1a2e' : '#fff' }}
+                        >{u.full_name.charAt(0)}</div>
+                      ))}
+                    </div>
+                    <span className="text-[11px] font-medium" style={{ color: mutedColor }}>
+                      {getMemberCount(team.id)} member{getMemberCount(team.id) !== 1 ? 's' : ''}
+                    </span>
                   </div>
-                  <span className="text-[11px] font-medium" style={{ color: mutedColor }}>
-                    {getMemberCount(team.id)} member{getMemberCount(team.id) !== 1 ? 's' : ''}
+                  <span className="text-[10px] font-semibold flex items-center gap-1 px-2 py-1 rounded-lg opacity-80 group-hover:opacity-100 transition-opacity" style={{ background: `${team.color}15`, color: team.color }}>
+                    <span>👥</span> View & Edit
                   </span>
                 </div>
 
@@ -888,8 +1185,15 @@ export default function AdminView() {
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold truncate" style={{ color: textColor }}>{user.full_name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold truncate flex items-center gap-1.5" style={{ color: textColor }}>
+                      <span>{user.full_name}</span>
+                      {user.tag && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-extrabold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          {user.tag}
+                        </span>
+                      )}
+                    </p>
                     {user.id === currentUser?.id && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>You</span>
                     )}
@@ -1252,7 +1556,14 @@ export default function AdminView() {
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h4 className="font-bold text-sm truncate" style={{ color: textColor }}>{user.full_name}</h4>
+                          <h4 className="font-bold text-sm truncate flex items-center gap-1.5" style={{ color: textColor }}>
+                            <span>{user.full_name}</span>
+                            {user.tag && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-extrabold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                {user.tag}
+                              </span>
+                            )}
+                          </h4>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: `${teamColor}15`, color: teamColor }}>
                               {getTeamName(user.team_id)}

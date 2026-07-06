@@ -8,7 +8,24 @@ export async function fetchTasks() {
     .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data as DbTask[];
+  
+  const tasks = (data || []) as DbTask[];
+  const getRank = (t: DbTask) => {
+    const pattern = (t.recurrence_pattern || '').toLowerCase();
+    const tags = (t.tags || []).map(tag => tag.toLowerCase());
+    const title = (t.title || '').toLowerCase();
+    if (pattern === 'daily' || tags.includes('daily') || title.includes('daily')) return 1;
+    if (pattern === 'weekly' || tags.includes('weekly') || title.includes('weekly')) return 2;
+    if (pattern === 'monthly' || tags.includes('monthly') || title.includes('monthly')) return 3;
+    return 4;
+  };
+
+  return tasks.sort((a, b) => {
+    const rankA = getRank(a);
+    const rankB = getRank(b);
+    if (rankA !== rankB) return rankA - rankB;
+    return (a.order_index || 0) - (b.order_index || 0);
+  });
 }
 
 export async function fetchSubtasks(taskId: string) {

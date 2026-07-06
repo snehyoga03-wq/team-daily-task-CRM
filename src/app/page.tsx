@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
 import * as dataService from '@/lib/dataService';
 import { useTaskReminders } from '@/hooks/useTaskReminders';
+import { useRecurringTasks } from '@/hooks/useRecurringTasks';
 import LoginScreen from '@/components/auth/LoginScreen';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -38,8 +39,9 @@ export default function Home() {
   const isDark = theme === 'dark';
   const [isMobile, setIsMobile] = useState(false);
 
-  // Initialize task reminders
+  // Initialize task reminders and automatic recurring task cloning
   useTaskReminders();
+  useRecurringTasks();
 
   // Detect mobile
   useEffect(() => {

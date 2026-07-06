@@ -152,6 +152,24 @@ interface AppState {
   setSelectedTaskId: (id: string | null) => void;
 }
 
+const sortTasksBySchedule = (tasksList: Task[]) => {
+  const getRank = (t: Task) => {
+    const pattern = (t.recurrence_pattern || '').toLowerCase();
+    const tags = (t.tags || []).map(tag => tag.toLowerCase());
+    const title = (t.title || '').toLowerCase();
+    if (pattern === 'daily' || tags.includes('daily') || title.includes('daily')) return 1;
+    if (pattern === 'weekly' || tags.includes('weekly') || title.includes('weekly')) return 2;
+    if (pattern === 'monthly' || tags.includes('monthly') || title.includes('monthly')) return 3;
+    return 4;
+  };
+  return [...tasksList].sort((a, b) => {
+    const rankA = getRank(a);
+    const rankB = getRank(b);
+    if (rankA !== rankB) return rankA - rankB;
+    return (a.order_index || 0) - (b.order_index || 0);
+  });
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -177,10 +195,10 @@ export const useAppStore = create<AppState>()(
       
       // Tasks
       tasks: [],
-      setTasks: (tasks) => set({ tasks }),
-      addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
+      setTasks: (tasks) => set({ tasks: sortTasksBySchedule(tasks) }),
+      addTask: (task) => set((s) => ({ tasks: sortTasksBySchedule([task, ...s.tasks]) })),
       updateTask: (id, updates) => set((s) => ({
-        tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+        tasks: sortTasksBySchedule(s.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t))),
       })),
       deleteTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
       
