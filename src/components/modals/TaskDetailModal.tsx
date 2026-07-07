@@ -96,7 +96,7 @@ export default function TaskDetailModal() {
       setStatus('todo');
       setPriority('medium');
       setAssigneeId(null);
-      setTags([]);
+      setTags(['Planned']);
       setSelectedDate(null);
       setStartDate(null);
       setSelectedTime('none');
@@ -615,6 +615,26 @@ export default function TaskDetailModal() {
                   <option value="medium">🟡 Medium</option>
                   <option value="high">🟠 High</option>
                   <option value="urgent">🔴 Urgent</option>
+                </select>
+              </div>
+
+              {/* Plan Type Selector */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: mutedColor }}>
+                  Plan Type
+                </label>
+                <select
+                  value={tags.some(t => t.toLowerCase() === 'unplanned') ? 'Unplanned' : 'Planned'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const cleanTags = tags.filter((t) => t.toLowerCase() !== 'planned' && t.toLowerCase() !== 'unplanned');
+                    setTags([...cleanTags, val]);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs outline-none cursor-pointer font-semibold"
+                  style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
+                >
+                  <option value="Planned">📅 Planned</option>
+                  <option value="Unplanned">⚡ Unplanned</option>
                 </select>
               </div>
 

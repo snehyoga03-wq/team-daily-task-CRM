@@ -27,7 +27,7 @@ export default function TasksView() {
   const [filter, setFilter] = useState<string>('all');
   const [taskScope, setTaskScope] = useState<'my_tasks' | 'team_tasks'>('my_tasks');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -64,19 +64,60 @@ export default function TasksView() {
     }
 
     if (selectedDate) {
+      const pattern = (t.recurrence_pattern || '').toLowerCase();
+      const tags = (t.tags || []).map(tag => tag.toLowerCase());
+      const title = (t.title || '').toLowerCase();
+      
+      const isDaily = pattern === 'daily' || tags.includes('daily') || title.includes('daily') || title.includes('standup');
+      const isWeekly = pattern === 'weekly' || tags.includes('weekly') || title.includes('weekly');
+      const isMonthly = pattern === 'monthly' || tags.includes('monthly') || title.includes('monthly');
+      
+      if (isDaily) {
+        // Daily tasks occur every single day! Always include them when viewing any date.
+        return true;
+      }
+      
       if (!t.due_date) return false;
+      
+      // Compare string prefix first to avoid timezone offset shifts (e.g. UTC vs IST)
+      if (t.due_date.slice(0, 10) === selectedDate.slice(0, 10)) {
+        return true;
+      }
+      
       const tDate = new Date(t.due_date);
       const sDate = new Date(selectedDate);
-      if (
-        tDate.getFullYear() !== sDate.getFullYear() ||
-        tDate.getMonth() !== sDate.getMonth() ||
-        tDate.getDate() !== sDate.getDate()
-      ) {
-        return false;
+      
+      if (isMonthly) {
+        // Show monthly tasks if they fall in the same month and year as the selected date
+        if (tDate.getFullYear() !== sDate.getFullYear() || tDate.getMonth() !== sDate.getMonth()) {
+          return false;
+        }
+      } else if (isWeekly) {
+        // Show weekly tasks if they fall within the same calendar week as the selected date
+        const getWeekStart = (d: Date) => {
+          const date = new Date(d);
+          const day = date.getDay();
+          const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+          return new Date(date.setDate(diff)).setHours(0, 0, 0, 0);
+        };
+        if (getWeekStart(tDate) !== getWeekStart(sDate)) {
+          return false;
+        }
+      } else {
+        // Normal task: must match exact year, month, and day
+        if (
+          tDate.getFullYear() !== sDate.getFullYear() ||
+          tDate.getMonth() !== sDate.getMonth() ||
+          tDate.getDate() !== sDate.getDate()
+        ) {
+          return false;
+        }
       }
     }
 
     if (filter === 'all') return true;
+    if (filter === 'planned') return t.tags?.some(tag => tag.toLowerCase() === 'planned');
+    if (filter === 'unplanned') return t.tags?.some(tag => tag.toLowerCase() === 'unplanned');
     if (['urgent', 'high', 'medium', 'low'].includes(filter)) return t.priority === filter;
     
     const state = getTaskState(t);
@@ -172,6 +213,10 @@ export default function TasksView() {
               <option value="overdue">Overdue</option>
               <option value="completed">Completed</option>
             </optgroup>
+            <optgroup label="Plan Type">
+              <option value="planned">📅 Planned</option>
+              <option value="unplanned">⚡ Unplanned</option>
+            </optgroup>
             <optgroup label="Priority">
               <option value="urgent">Urgent</option>
               <option value="high">High</option>
@@ -181,14 +226,26 @@ export default function TasksView() {
           </select>
           
           {/* Date Filter */}
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={e => setSelectedDate(e.target.value)}
-            className="input-field py-1.5 text-xs"
-            style={{ width: 'auto' }}
-            title="Filter by due date"
-          />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="input-field py-1.5 text-xs"
+              style={{ width: 'auto' }}
+              title="Filter by due date (defaults to today)"
+            />
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate('')}
+                className="px-2 py-1 rounded-lg text-xs font-bold transition-colors hover:bg-purple-500/20"
+                style={{ color: mutedColor }}
+                title="Clear date filter (show all dates)"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSelectedTaskId('new')} className="btn-primary text-xs">
             ＋ Add Task
@@ -273,7 +330,12 @@ export default function TasksView() {
                         )}
                         {task.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-2">
-                            {task.tags.slice(0, 3).map(tag => (
+                            {task.tags.some(t => t.toLowerCase() === 'unplanned') ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30">⚡ Unplanned</span>
+                            ) : task.tags.some(t => t.toLowerCase() === 'planned') ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-500/15 text-purple-500 border border-purple-500/30">📅 Planned</span>
+                            ) : null}
+                            {task.tags.filter(t => t.toLowerCase() !== 'planned' && t.toLowerCase() !== 'unplanned').slice(0, 3).map(tag => (
                               <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: mutedColor }}>{tag}</span>
                             ))}
                           </div>

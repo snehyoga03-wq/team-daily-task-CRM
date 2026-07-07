@@ -508,3 +508,64 @@ export function subscribeToNotifications(userId: string, callback: (payload: any
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, callback)
     .subscribe();
 }
+
+// ─── AUTO-SEED SOCIAL MEDIA DAILY STANDUP TASKS ────────────────────
+export async function ensureSocialMediaDailyTasks(creatorId?: string) {
+  try {
+    const { data: existingTeams } = await supabase.from('teams').select('*');
+    let smTeam = (existingTeams || []).find((t: any) => t.name.toLowerCase().includes('social media'));
+    
+    if (!smTeam) {
+      const { data: newTeam, error } = await supabase.from('teams').insert({
+        name: 'Social Media Management',
+        description: 'Social Media & Content Management Team',
+        color: '#ec4899'
+      }).select().single();
+      if (!error && newTeam) {
+        smTeam = newTeam;
+      }
+    }
+    
+    if (!smTeam) return;
+
+    const { data: existingTasks } = await supabase.from('tasks').select('*').eq('team_id', smTeam.id);
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    const hasMorning = (existingTasks || []).some((t: any) => t.title.toLowerCase().includes('morning standup'));
+    if (!hasMorning) {
+      await createTask({
+        title: 'morning Standup meeting',
+        description: 'Daily morning alignment and task planning for Social Media Management team',
+        status: 'todo',
+        priority: 'high',
+        team_id: smTeam.id,
+        creator_id: creatorId || null,
+        is_recurring: true,
+        recurrence_pattern: 'daily',
+        tags: ['daily', 'standup', 'Planned'],
+        order_index: -10,
+        due_date: todayStr
+      });
+    }
+
+    const hasEvening = (existingTasks || []).some((t: any) => t.title.toLowerCase().includes('evening standup'));
+    if (!hasEvening) {
+      await createTask({
+        title: 'Evening standup meeting',
+        description: 'Daily evening review of content output, reels, and pending social media tasks',
+        status: 'todo',
+        priority: 'high',
+        team_id: smTeam.id,
+        creator_id: creatorId || null,
+        is_recurring: true,
+        recurrence_pattern: 'daily',
+        tags: ['daily', 'standup', 'Planned'],
+        order_index: -9,
+        due_date: todayStr
+      });
+    }
+  } catch (err) {
+    console.error('Failed to auto-seed Social Media daily standup tasks:', err);
+  }
+}
+

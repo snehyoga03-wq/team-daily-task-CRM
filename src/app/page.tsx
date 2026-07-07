@@ -81,6 +81,19 @@ export default function Home() {
           }
         } catch { /* notifications table might be empty */ }
 
+        // Ensure Social Media standup tasks exist at top of daily list
+        try {
+          if (currentUser) {
+            await dataService.ensureSocialMediaDailyTasks(currentUser.id);
+            const [updatedTasks, updatedTeams] = await Promise.all([
+              dataService.fetchTasks(),
+              dataService.fetchTeams(),
+            ]);
+            setTasks(updatedTasks);
+            setTeams(updatedTeams);
+          }
+        } catch { /* ignore if offline or table error */ }
+
         setDataLoaded(true);
       } catch (err) {
         console.error('Failed to load data from Supabase:', err);

@@ -15,6 +15,7 @@ export default function QuickAddModal() {
 
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [planType, setPlanType] = useState<'Planned' | 'Unplanned'>('Planned');
   const [type, setType] = useState<'task' | 'lead' | 'event'>('task');
   const [saving, setSaving] = useState(false);
 
@@ -29,7 +30,7 @@ export default function QuickAddModal() {
           status: 'todo',
           priority,
           creator_id: currentUser.id,
-          tags: [],
+          tags: [planType],
           order_index: 0,
         });
         addTask(task);
@@ -93,13 +94,29 @@ export default function QuickAddModal() {
               className="input-field mb-4 text-base" autoFocus />
 
             {type === 'task' && (
-              <div className="flex gap-2 mb-4">
-                {(['low', 'medium', 'high', 'urgent'] as const).map(p => (
-                  <button key={p} onClick={() => setPriority(p)} className={`badge badge-${p} cursor-pointer transition-all ${priority === p ? '' : 'opacity-50'}`}
-                    style={{ boxShadow: priority === p ? `0 0 0 1px ${isDark ? '#12121a' : '#fff'}, 0 0 0 3px rgba(139,92,246,0.5)` : 'none' }}>
-                    {p}
-                  </button>
-                ))}
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold" style={{ color: mutedColor }}>Priority:</span>
+                  {(['low', 'medium', 'high', 'urgent'] as const).map(p => (
+                    <button key={p} onClick={() => setPriority(p)} className={`badge badge-${p} cursor-pointer transition-all ${priority === p ? '' : 'opacity-50'}`}
+                      style={{ boxShadow: priority === p ? `0 0 0 1px ${isDark ? '#12121a' : '#fff'}, 0 0 0 3px rgba(139,92,246,0.5)` : 'none' }}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold" style={{ color: mutedColor }}>Plan Type:</span>
+                  {(['Planned', 'Unplanned'] as const).map(pt => (
+                    <button key={pt} onClick={() => setPlanType(pt)} className="px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      style={{
+                        background: planType === pt ? (pt === 'Planned' ? 'rgba(139,92,246,0.2)' : 'rgba(245,158,11,0.2)') : isDark ? '#1a1a25' : '#f3f0ff',
+                        color: planType === pt ? (pt === 'Planned' ? '#a855f7' : '#f59e0b') : mutedColor,
+                        border: `1px solid ${planType === pt ? (pt === 'Planned' ? '#a855f7' : '#f59e0b') : 'transparent'}`,
+                      }}>
+                      {pt === 'Planned' ? '📅 Planned' : '⚡ Unplanned'}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
