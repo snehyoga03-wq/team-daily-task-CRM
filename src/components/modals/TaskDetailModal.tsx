@@ -95,7 +95,7 @@ export default function TaskDetailModal() {
       setDescription('');
       setStatus('todo');
       setPriority('medium');
-      setAssigneeId(null);
+      setAssigneeId(currentUser?.id || null);
       setTags(['Planned']);
       setSelectedDate(null);
       setStartDate(null);

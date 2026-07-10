@@ -77,7 +77,12 @@ export default function TasksView() {
         return true;
       }
       
-      if (!t.due_date) return false;
+      const state = getTaskState(t);
+      
+      if (!t.due_date) {
+        // Show tasks without a due date until they are completed
+        return !state.isCompleted;
+      }
       
       // Compare string prefix first to avoid timezone offset shifts (e.g. UTC vs IST)
       if (t.due_date.slice(0, 10) === selectedDate.slice(0, 10)) {
@@ -86,6 +91,12 @@ export default function TasksView() {
       
       const tDate = new Date(t.due_date);
       const sDate = new Date(selectedDate);
+
+      // If task is overdue and NOT completed, show it on today's view or any selected view that is after its due date
+      // This rolls over uncompleted tasks to the next day
+      if (!state.isCompleted && tDate < sDate) {
+        return true;
+      }
       
       if (isMonthly) {
         // Show monthly tasks if they fall in the same month and year as the selected date
@@ -128,6 +139,18 @@ export default function TasksView() {
   });
 
   const overdueCount = tasks.filter(t => getTaskState(t).isOverdue).length;
+
+  const sortedFilteredTasks = [...filteredTasks].sort((a, b) => {
+    // completed tasks at the bottom
+    const aCompleted = a.status === 'done';
+    const bCompleted = b.status === 'done';
+    if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+    
+    // newly created at the top
+    const aCreated = new Date(a.created_at || 0).getTime();
+    const bCreated = new Date(b.created_at || 0).getTime();
+    return bCreated - aCreated;
+  });
 
   const views = ['kanban', 'list', 'gantt'] as const;
 
@@ -258,7 +281,7 @@ export default function TasksView() {
         <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 500 }}>
           {(Object.keys(statusConfig) as Task['status'][]).map(status => {
             const config = statusConfig[status];
-            const columnTasks = filteredTasks.filter(t => t.status === status);
+            const columnTasks = sortedFilteredTasks.filter(t => t.status === status);
             return (
               <div
                 key={status}
@@ -374,7 +397,7 @@ export default function TasksView() {
           <div className="grid grid-cols-[1fr,100px,100px,120px,80px] gap-4 px-5 py-3 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
             <span>Task</span><span>Status</span><span>Priority</span><span>Assignee</span><span>Due</span>
           </div>
-          {filteredTasks.map(task => (
+          {sortedFilteredTasks.map(task => (
             <motion.div key={task.id} onClick={() => setSelectedTaskId(task.id)} whileHover={{ background: isDark ? 'rgba(139,92,246,0.04)' : 'rgba(139,92,246,0.03)' }} className="grid grid-cols-[1fr,100px,100px,120px,80px] gap-4 px-5 py-3 border-b items-center cursor-pointer" style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
               <span className="text-sm" style={{ color: textColor }}>{task.title}</span>
               <span className="text-[10px] px-2 py-1 rounded-full text-center font-medium" style={{ background: `${statusConfig[task.status].color}15`, color: statusConfig[task.status].color }}>{statusConfig[task.status].label}</span>
@@ -388,7 +411,7 @@ export default function TasksView() {
 
       {/* Gantt View */}
       {taskView === 'gantt' && (
-        <GanttBoard filteredTasks={filteredTasks} />
+        <GanttBoard filteredTasks={sortedFilteredTasks} />
       )}
 
       {/* Task Detail & Edit Modal */}
