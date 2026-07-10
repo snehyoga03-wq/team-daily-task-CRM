@@ -50,11 +50,25 @@ export default function SettingsView() {
     {
       title: '🔗 Integrations',
       items: [
-        { label: 'WhatsApp Business', description: 'Connect WhatsApp for CRM', action: <span className="text-[10px] px-2 py-1 rounded-full" style={{ background: '#10b98115', color: '#10b981' }}>Connected</span> },
+        {
+          label: 'WhatsApp Business Cloud API',
+          description: 'Automated task reminders & template testing',
+          action: (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => useAppStore.getState().setActiveView('admin')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow"
+              style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+            >
+              💬 Setup & Test
+            </motion.button>
+          ),
+        },
         { label: 'Google Calendar', description: 'Sync calendar events', action: <button className="text-xs font-medium" style={{ color: '#8b5cf6' }}>Connect</button> },
         { label: 'Supabase', description: 'Database backend', action: <span className="text-[10px] px-2 py-1 rounded-full" style={{ background: '#10b98115', color: '#10b981' }}>Connected</span> },
       ],
     },
+
     {
       title: '🏢 Workspace',
       items: [

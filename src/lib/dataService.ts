@@ -569,3 +569,34 @@ export async function ensureSocialMediaDailyTasks(creatorId?: string) {
   }
 }
 
+// ─── APP SETTINGS & WHATSAPP CONFIG ────────────────────────────────
+export async function fetchAppSettings(key: string) {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+    if (error) return null;
+    return data?.value || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function saveAppSettings(key: string, value: any) {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('Failed to save app setting to Supabase:', err);
+    throw err;
+  }
+}
+
+

@@ -7,6 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useCallback } from 'react';
 import * as dataService from '@/lib/dataService';
 import { DbTeam, DbUser } from '@/lib/supabase';
+import { getWhatsAppConfig, saveWhatsAppConfig, loadWhatsAppConfigRemote, saveWhatsAppConfigRemote, sendWhatsAppReminder, fetchWhatsAppTemplates, cleanTemplateName, WhatsAppConfig, WhatsAppTemplate } from '@/lib/whatsapp';
+
+
 
 type AdminTab = 'teams' | 'users' | 'kpi' | 'overview' | 'settings';
 
@@ -55,6 +58,27 @@ export default function AdminView() {
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
+  // ─── WhatsApp Integration & Reminder Sandbox State ─────────────────
+  const [waConfig, setWaConfig] = useState<WhatsAppConfig>({
+    accessToken: '',
+    phoneId: '',
+    templateName: 'daily_yoga_05',
+    languageCode: 'en',
+    enabled: true,
+  });
+  const [waShowToken, setWaShowToken] = useState(false);
+  const [waTestPhone, setWaTestPhone] = useState('');
+  const [waTestMessage, setWaTestMessage] = useState("Reminder: Please complete your daily CRM tasks by 5:00 PM!");
+  const [waTesting, setWaTesting] = useState(false);
+  const [waTestResult, setWaTestResult] = useState<{ success: boolean; message: string; details?: any } | null>(null);
+  const [waSavedToast, setWaSavedToast] = useState(false);
+  const [waTemplates, setWaTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [waFetchingTemplates, setWaFetchingTemplates] = useState(false);
+  const [waTemplateError, setWaTemplateError] = useState<string | null>(null);
+  const [waNoParams, setWaNoParams] = useState(false);
+
+
+
   // ─── Load all users (including inactive) ──────────────────────────
   const loadAllUsers = useCallback(async () => {
     try {
@@ -78,10 +102,18 @@ export default function AdminView() {
     if (isAdmin) {
       loadAllUsers();
       loadTeams();
+      loadWhatsAppConfigRemote().then(cfg => {
+        setWaConfig(cfg);
+      });
+      if (currentUser?.phone) {
+        setWaTestPhone(currentUser.phone);
+      }
     }
-  }, [isAdmin, loadAllUsers, loadTeams]);
+  }, [isAdmin, loadAllUsers, loadTeams, currentUser]);
+
 
   if (!isAdmin) return null;
+
 
   // ─── Team CRUD handlers ───────────────────────────────────────────
   const handleCreateTeam = async () => {
@@ -360,7 +392,61 @@ export default function AdminView() {
     };
   };
 
+  // ─── WhatsApp Handlers ─────────────────────────────────────────────
+  const handleSaveWhatsAppConfig = () => {
+    saveWhatsAppConfigRemote(waConfig);
+    setWaSavedToast(true);
+    setTimeout(() => setWaSavedToast(false), 3000);
+  };
+
+
+  const handleFetchTemplates = async () => {
+    if (!waConfig.accessToken || !waConfig.phoneId) {
+      setWaTemplateError('Please enter your WhatsApp Access Token and Phone Number ID first.');
+      return;
+    }
+    setWaFetchingTemplates(true);
+    setWaTemplateError(null);
+    try {
+      const res = await fetchWhatsAppTemplates(waConfig);
+      setWaTemplates(res.templates || []);
+    } catch (err: any) {
+      setWaTemplateError(err.message || 'Failed to fetch templates from Meta Cloud API');
+    }
+    setWaFetchingTemplates(false);
+  };
+
+  const handleTestWhatsApp = async () => {
+
+    if (!waTestPhone.trim()) {
+      setWaTestResult({ success: false, message: 'Please enter a test recipient phone number (e.g. 919876543210)' });
+      return;
+    }
+    setWaTesting(true);
+    setWaTestResult(null);
+    try {
+      const res = await sendWhatsAppReminder(
+        waTestPhone.trim(),
+        waNoParams ? '' : (waTestMessage.trim() || 'Test reminder from CRM'),
+        waConfig
+      );
+
+      setWaTestResult({
+        success: true,
+        message: `Template "${waConfig.templateName || 'daily_yoga_05'}" reminder sent successfully via Meta Cloud API!`,
+        details: res,
+      });
+    } catch (err: any) {
+      setWaTestResult({
+        success: false,
+        message: err.message || 'Failed to send WhatsApp reminder template',
+      });
+    }
+    setWaTesting(false);
+  };
+
   // ─── Stats ────────────────────────────────────────────────────────
+
   const stats = {
     totalUsers: allUsers.length,
     activeUsers: allUsers.filter(u => u.is_active).length,
@@ -1948,8 +2034,412 @@ export default function AdminView() {
   // TAB: Admin Settings
   // ═══════════════════════════════════════════════════════════════════
   function renderSettingsTab() {
+    const isWaConnected = Boolean(waConfig.accessToken || process.env.NEXT_PUBLIC_WHATSAPP_CONFIGURED);
     return (
-      <div className="space-y-5 max-w-xl">
+      <div className="space-y-6 max-w-4xl">
+        {/* ─── Meta WhatsApp Business Cloud API Integration & Reminder Setup ─── */}
+        <div
+          className="rounded-3xl p-6 space-y-6 shadow-xl relative overflow-hidden"
+          style={{
+            background: isDark
+              ? 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.04), rgba(30,30,45,0.85))'
+              : 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(240,253,244,0.95), #ffffff)',
+            border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(16,185,129,0.3)',
+            backdropFilter: 'blur(20px)',
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between flex-wrap gap-3 pb-4 border-b" style={{ borderColor: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.2)' }}>
+            <div className="flex items-center gap-3.5">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-lg"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: '#ffffff',
+                }}
+              >
+                💬
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-extrabold" style={{ color: textColor }}>
+                    Meta WhatsApp Business Cloud API Integration
+                  </h3>
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm"
+                    style={{
+                      background: isWaConnected ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                      color: isWaConnected ? '#10b981' : '#f59e0b',
+                      border: isWaConnected ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(245,158,11,0.3)',
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: isWaConnected ? '#10b981' : '#f59e0b' }} />
+                    {isWaConnected ? 'API Connected & Ready' : 'Credentials Needed'}
+                  </span>
+                </div>
+                <p className="text-xs mt-0.5" style={{ color: mutedColor }}>
+                  Configure your WhatsApp Access Token & Template to send automated task reminders to team members
+                </p>
+              </div>
+            </div>
+            {waSavedToast && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-500 shadow-md flex items-center gap-1.5"
+              >
+                <span>✅ Settings Saved!</span>
+              </motion.div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column: API Configuration */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                <span>🔑 Step 1: Cloud API Credentials & Template</span>
+              </h4>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-semibold block mb-1" style={{ color: textColor }}>
+                    WhatsApp Access Token *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={waShowToken ? 'text' : 'password'}
+                      value={waConfig.accessToken}
+                      onChange={e => setWaConfig({ ...waConfig, accessToken: e.target.value })}
+                      placeholder="EAA... (Meta Graph API Permanent or Temporary Token)"
+                      className="w-full pl-3.5 pr-20 py-2.5 rounded-xl text-xs font-mono outline-none transition-all"
+                      style={{
+                        background: isDark ? 'rgba(15,23,42,0.7)' : '#ffffff',
+                        color: textColor,
+                        border: `1px solid ${borderColor}`,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setWaShowToken(!waShowToken)}
+                      className="absolute right-2 top-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-colors"
+                      style={{
+                        background: isDark ? 'rgba(255,255,255,0.1)' : '#f1f5f9',
+                        color: mutedColor,
+                      }}
+                    >
+                      {waShowToken ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] mt-1" style={{ color: mutedColor }}>
+                    Found in your Meta Developers App &gt; WhatsApp &gt; API Setup
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold block mb-1" style={{ color: textColor }}>
+                      Phone Number ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={waConfig.phoneId}
+                      onChange={e => setWaConfig({ ...waConfig, phoneId: e.target.value })}
+                      placeholder="e.g. 1046892348..."
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono outline-none"
+                      style={{
+                        background: isDark ? 'rgba(15,23,42,0.7)' : '#ffffff',
+                        color: textColor,
+                        border: `1px solid ${borderColor}`,
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold block mb-1" style={{ color: textColor }}>
+                      WABA ID (For Fetching Templates)
+                    </label>
+                    <input
+                      type="text"
+                      value={waConfig.wabaId || ''}
+                      onChange={e => setWaConfig({ ...waConfig, wabaId: e.target.value })}
+                      placeholder="WhatsApp Business Account ID"
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono outline-none"
+                      style={{
+                        background: isDark ? 'rgba(15,23,42,0.7)' : '#ffffff',
+                        color: textColor,
+                        border: `1px solid ${borderColor}`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="text-[11px] font-semibold" style={{ color: textColor }}>
+                      WhatsApp Approved Template Name *
+                    </label>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={handleFetchTemplates}
+                      disabled={waFetchingTemplates}
+                      className="px-3 py-1 rounded-lg text-[10px] font-extrabold text-white shadow transition-all flex items-center gap-1.5"
+                      style={{ background: 'linear-gradient(135deg, #059669, #0d9488)' }}
+                    >
+                      {waFetchingTemplates ? (
+                        <>
+                          <span className="animate-spin">⏳</span> Fetching Meta Templates...
+                        </>
+                      ) : (
+                        <>
+                          <span>🔄 Fetch My Meta Templates</span>
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
+
+                  {waTemplateError && (
+                    <div className="p-2.5 rounded-xl text-[11px] bg-rose-500/10 border border-rose-500/30 text-rose-400 font-medium">
+                      ⚠️ {waTemplateError}
+                    </div>
+                  )}
+
+                  {waTemplates.length > 0 && (
+                    <div className="p-3 rounded-xl border space-y-1.5" style={{ background: isDark ? 'rgba(16,185,129,0.08)' : 'rgba(240,253,244,0.8)', borderColor: 'rgba(16,185,129,0.3)' }}>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 block">
+                        ✅ Select from your Meta Approved Templates ({waTemplates.length} found)
+                      </label>
+                      <select
+                        onChange={e => {
+                          const selected = waTemplates.find(t => t.name === e.target.value);
+                          if (selected) {
+                            setWaConfig({
+                              ...waConfig,
+                              templateName: cleanTemplateName(selected.name),
+                              languageCode: selected.language || 'en_US',
+                            });
+                            const bodyComp = selected.components?.find((c: any) => c.type === 'BODY' || c.type === 'body');
+                            const matches = bodyComp?.text?.match(/\{\{\d+\}\}/g);
+                            const count = matches ? matches.length : 0;
+                            setWaNoParams(count === 0);
+                          }
+                        }}
+
+                        value={waConfig.templateName}
+                        className="w-full px-3 py-2 rounded-lg text-xs font-mono font-bold outline-none border cursor-pointer"
+                        style={{
+                          background: isDark ? '#0f172a' : '#ffffff',
+                          color: textColor,
+                          borderColor: 'rgba(16,185,129,0.4)',
+                        }}
+                      >
+                        <option value="">-- Choose an Approved Template --</option>
+                        {waTemplates.map(t => (
+                          <option key={`${t.id || t.name}-${t.language}`} value={t.name}>
+                            {t.name} ({t.language}) [{t.status}]
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <input
+                    type="text"
+                    value={waConfig.templateName}
+                    onChange={e => setWaConfig({ ...waConfig, templateName: e.target.value })}
+                    placeholder="e.g. hello_world"
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono outline-none font-semibold"
+                    style={{
+                      background: isDark ? 'rgba(15,23,42,0.7)' : '#ffffff',
+                      color: textColor,
+                      border: `1px solid ${borderColor}`,
+                    }}
+                  />
+                  <p className="text-[10px] mt-1" style={{ color: mutedColor }}>
+                    Active Template: <code className="text-emerald-500 font-bold">{cleanTemplateName(waConfig.templateName)}</code> • Language: <code className="text-emerald-500 font-bold">{waConfig.languageCode || 'en'}</code>
+                  </p>
+                </div>
+
+
+                <div className="flex items-center justify-between pt-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={waConfig.enabled}
+                      onChange={e => setWaConfig({ ...waConfig, enabled: e.target.checked })}
+                      className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold" style={{ color: textColor }}>
+                      Enable Automated Task Due Reminders
+                    </span>
+                  </label>
+
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSaveWhatsAppConfig}
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-lg transition-transform hover:scale-105"
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                  >
+                    💾 Save Credentials
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Interactive Sandbox & Live Reminder Tester */}
+            <div
+              className="p-5 rounded-2xl border space-y-4 flex flex-col justify-between"
+              style={{
+                background: isDark ? 'rgba(15,23,42,0.4)' : 'rgba(255,255,255,0.7)',
+                borderColor: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.25)',
+              }}
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                    <span>🚀 Step 2: Live Reminder Sandbox & Test</span>
+                  </h4>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold">
+                    Sandbox
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold block mb-1" style={{ color: textColor }}>
+                    Test Recipient WhatsApp Number (with country code)
+                  </label>
+                  <input
+                    type="tel"
+                    value={waTestPhone}
+                    onChange={e => setWaTestPhone(e.target.value)}
+                    placeholder="e.g. 919876543210"
+                    className="w-full px-3.5 py-2.2 rounded-xl text-xs font-mono outline-none"
+                    style={{
+                      background: isDark ? '#0f172a' : '#ffffff',
+                      color: textColor,
+                      border: `1px solid ${borderColor}`,
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-semibold" style={{ color: textColor }}>
+                      Template Parameter Text ({'{{1}}'})
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold cursor-pointer select-none px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      <input
+                        type="checkbox"
+                        checked={waNoParams}
+                        onChange={e => setWaNoParams(e.target.checked)}
+                        className="rounded accent-emerald-500 w-3.5 h-3.5"
+                      />
+                      <span>0 Parameters (Fixed Template)</span>
+                    </label>
+                  </div>
+
+                  {waNoParams ? (
+                    <div className="p-3 rounded-xl border text-[11px] bg-emerald-500/10 border-emerald-500/30 text-emerald-500 font-medium flex items-center gap-2">
+                      <span>⚡</span>
+                      <span>
+                        Fixed template selected (e.g. <code>hello_world</code>). No variables (<code>components</code>) will be sent so Meta doesn't throw a parameter mismatch error.
+                      </span>
+                    </div>
+                  ) : (
+                    <textarea
+                      rows={2}
+                      value={waTestMessage}
+                      onChange={e => setWaTestMessage(e.target.value)}
+                      placeholder="Reminder message text sent inside template variable"
+                      className="w-full px-3.5 py-2 rounded-xl text-xs outline-none resize-none"
+                      style={{
+                        background: isDark ? '#0f172a' : '#ffffff',
+                        color: textColor,
+                        border: `1px solid ${borderColor}`,
+                      }}
+                    />
+                  )}
+                </div>
+
+
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleTestWhatsApp}
+                  disabled={waTesting || !waTestPhone.trim()}
+                  className="w-full py-2.5 rounded-xl text-xs font-extrabold text-white shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981, #0d9488)',
+                  }}
+                >
+                  {waTesting ? (
+                    <>
+                      <span className="animate-spin">⏳</span> Sending Test via Meta Cloud API...
+                    </>
+                  ) : (
+                    <>
+                      <span>📲 Send Live WhatsApp Reminder Test</span>
+                    </>
+                  )}
+                </motion.button>
+
+                {/* API Result Feedback Box */}
+                {waTestResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-3 rounded-xl text-xs border ${
+                      waTestResult.success
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-semibold'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-400 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-sm">{waTestResult.success ? '✅' : '⚠️'}</span>
+                      <div className="min-w-0 flex-1">
+                        <p>{waTestResult.message}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Live WhatsApp Chat Mockup Preview Bubble */}
+              <div
+                className="p-3.5 rounded-2xl space-y-2 mt-3"
+                style={{
+                  background: isDark ? '#0b141a' : '#eae6df',
+                  border: '1px solid rgba(16,185,129,0.2)',
+                }}
+              >
+                <div className="flex items-center justify-between text-[10px]" style={{ color: isDark ? '#8696a0' : '#667781' }}>
+                  <span className="font-bold flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Live Chat Preview
+                  </span>
+                  <span>WhatsApp Business</span>
+                </div>
+
+                <div
+                  className="p-3 rounded-2xl rounded-tl-none max-w-[92%] shadow-sm space-y-1 relative"
+                  style={{
+                    background: isDark ? '#005c4b' : '#dcf8c6',
+                    color: isDark ? '#e9edef' : '#111b21',
+                  }}
+                >
+                  <p className="text-[11px] leading-relaxed font-medium">
+                    {waTestMessage || 'Reminder: Please complete your daily CRM tasks!'}
+                  </p>
+                  <div className="flex items-center justify-end gap-1 text-[9px] opacity-75">
+                    <span>Just now</span>
+                    <span className="text-cyan-300 font-bold">✓✓</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Workspace */}
         <div className="rounded-2xl p-5 space-y-4" style={{ background: cardBg, border: `1px solid ${borderColor}`, backdropFilter: 'blur(20px)' }}>
           <h3 className="text-sm font-semibold" style={{ color: textColor }}>🏢 Workspace Settings</h3>
@@ -1961,6 +2451,7 @@ export default function AdminView() {
               </div>
               <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Active</span>
             </div>
+
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium" style={{ color: textColor }}>Default Role for New Users</p>
