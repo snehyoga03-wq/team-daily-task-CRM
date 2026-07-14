@@ -599,4 +599,67 @@ export async function saveAppSettings(key: string, value: any) {
   }
 }
 
+// ─── HR MANAGEMENT ─────────────────────────────────────────────────
 
+export async function fetchHolidays() {
+  const { data, error } = await supabase.from('holidays').select('*').order('date', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function addHoliday(holiday: { date: string; name: string; type: string }) {
+  const { data, error } = await supabase.from('holidays').insert(holiday).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteHoliday(id: string) {
+  const { error } = await supabase.from('holidays').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchLeaveRequests() {
+  const { data, error } = await supabase.from('leave_requests').select('*, user:users(*)').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function createLeaveRequest(request: any) {
+  const { data, error } = await supabase.from('leave_requests').insert(request).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateLeaveRequestStatus(id: string, status: string, approvedBy: string) {
+  const { data, error } = await supabase
+    .from('leave_requests')
+    .update({ status, approved_by: approvedBy, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchLatePolicySettings() {
+  const { data, error } = await supabase.from('late_policy_settings').select('*').limit(1).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateLatePolicySettings(id: string, updates: any) {
+  const { data, error } = await supabase.from('late_policy_settings').update(updates).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchAllAttendanceData() {
+  // Fetch all attendance for HR History grid
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*, user:users(*)')
+    .order('date', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return data;
+}

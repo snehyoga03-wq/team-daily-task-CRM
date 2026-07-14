@@ -28,7 +28,10 @@ export default function Sidebar() {
   // Build nav items dynamically — insert Admin before Settings if user is admin
   const dynamicNavItems: { id: View; label: string; icon: string }[] = [
     ...navItems.filter(item => item.id !== 'settings'),
-    ...(isAdmin ? [{ id: 'admin' as View, label: 'Admin Panel', icon: '🛡️' }] : []),
+    ...(isAdmin ? [
+      { id: 'hrms' as View, label: 'HR Management', icon: '🏢' },
+      { id: 'admin' as View, label: 'Admin Panel', icon: '🛡️' }
+    ] : []),
     ...navItems.filter(item => item.id === 'settings'),
   ];
 

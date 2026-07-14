@@ -17,7 +17,8 @@ export type View =
   | 'notifications' 
   | 'settings'
   | 'ai'
-  | 'admin';
+  | 'admin'
+  | 'hrms';
 
 export type TaskView = 'list' | 'kanban' | 'calendar' | 'timeline' | 'gantt';
 export type Theme = 'dark' | 'light';
