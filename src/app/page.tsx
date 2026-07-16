@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
 import * as dataService from '@/lib/dataService';
 import { useTaskReminders } from '@/hooks/useTaskReminders';
+import { useRecurringTasks } from '@/hooks/useRecurringTasks';
 
 import LoginScreen from '@/components/auth/LoginScreen';
 import Sidebar from '@/components/layout/Sidebar';
@@ -40,8 +41,9 @@ export default function Home() {
   const isDark = theme === 'dark';
   const [isMobile, setIsMobile] = useState(false);
 
-  // Initialize task reminders and automatic recurring task cloning
+  // Initialize task reminders and recurring task generation engine
   useTaskReminders();
+  useRecurringTasks();
 
 
   // Detect mobile (using 1024px to ensure responsiveness at high zoom levels)
@@ -82,18 +84,7 @@ export default function Home() {
           }
         } catch { /* notifications table might be empty */ }
 
-        // Ensure Social Media standup tasks exist at top of daily list
-        try {
-          if (currentUser) {
-            await dataService.ensureSocialMediaDailyTasks(currentUser.id);
-            const [updatedTasks, updatedTeams] = await Promise.all([
-              dataService.fetchTasks(),
-              dataService.fetchTeams(),
-            ]);
-            setTasks(updatedTasks);
-            setTeams(updatedTeams);
-          }
-        } catch { /* ignore if offline or table error */ }
+        // V2: Recurring task generation is handled by useRecurringTasks hook
 
         setDataLoaded(true);
       } catch (err) {

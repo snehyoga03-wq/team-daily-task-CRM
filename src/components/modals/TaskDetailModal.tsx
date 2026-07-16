@@ -43,6 +43,7 @@ export default function TaskDetailModal() {
   const [selectedTime, setSelectedTime] = useState<string>('none');
   const [selectedReminder, setSelectedReminder] = useState<string>('none');
   const [selectedRepeat, setSelectedRepeat] = useState<string>('none');
+  const [recurrenceDay, setRecurrenceDay] = useState<number | null>(null);
   const [durationMinutes, setDurationMinutes] = useState<number>(0);
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -85,6 +86,7 @@ export default function TaskDetailModal() {
       setSelectedTime(task.due_time || 'none');
       setSelectedReminder(task.reminder || 'none');
       setSelectedRepeat(task.recurrence_pattern || 'none');
+      setRecurrenceDay(task.recurrence_day ?? null);
       setDurationMinutes(task.duration_minutes || 0);
       setDependsOn(task.depends_on || []);
 
@@ -102,6 +104,7 @@ export default function TaskDetailModal() {
       setSelectedTime('none');
       setSelectedReminder('none');
       setSelectedRepeat('none');
+      setRecurrenceDay(null);
       setDurationMinutes(0);
       setDependsOn([]);
       setSubtasks([]);
@@ -136,7 +139,7 @@ export default function TaskDetailModal() {
     if (!task && !isNew) return;
     setIsSaving(true);
     try {
-      const updates = {
+      const updates: any = {
         title: title.trim(),
         description: description.trim() || null,
         status,
@@ -151,50 +154,28 @@ export default function TaskDetailModal() {
         duration_minutes: durationMinutes > 0 ? durationMinutes : null,
         is_recurring: selectedRepeat !== 'none',
         recurrence_pattern: selectedRepeat !== 'none' ? selectedRepeat : null,
+        recurrence_day: recurrenceDay,
         estimated_hours: durationMinutes > 0 ? durationMinutes / 60 : null,
       };
 
       if (isNew) {
-        let tasksToCreate = [updates];
-        
-        if (updates.is_recurring && updates.recurrence_pattern) {
-          tasksToCreate = [];
-          const pattern = updates.recurrence_pattern;
-          // Number of bulk tasks to generate
-          const count = pattern === 'daily' ? 30 : pattern === 'weekly' ? 4 : pattern === 'monthly' ? 12 : 1;
-          const baseDate = selectedDate || new Date();
-          
-          for (let i = 0; i < count; i++) {
-             let nextDate = new Date(baseDate);
-             if (pattern === 'daily') nextDate = addDays(nextDate, i);
-             else if (pattern === 'weekly') nextDate = addDays(nextDate, i * 7);
-             else if (pattern === 'monthly') nextDate = addMonths(nextDate, i);
-             
-             tasksToCreate.push({
-               ...updates,
-               due_date: format(nextDate, 'yyyy-MM-dd')
-             });
-          }
-        }
-
-        for (const taskPayload of tasksToCreate) {
-          const created = await dataService.createTask(taskPayload);
-          const createdSubtasks = [];
-          for (let i = 0; i < subtasks.length; i++) {
-            const newSub = await dataService.createSubtask({
-              task_id: created.id,
-              title: subtasks[i].title,
-              is_completed: subtasks[i].is_completed,
-              order_index: i,
-            });
-            createdSubtasks.push(newSub);
-          }
-          addTask({
-            ...created,
-            subtasks: createdSubtasks,
-            assignee: teamMembers.find(m => m.id === assigneeId) || null,
+        // V2: Create a single template task. The recurring engine generates instances.
+        const created = await dataService.createTask(updates);
+        const createdSubtasks = [];
+        for (let i = 0; i < subtasks.length; i++) {
+          const newSub = await dataService.createSubtask({
+            task_id: created.id,
+            title: subtasks[i].title,
+            is_completed: subtasks[i].is_completed,
+            order_index: i,
           });
+          createdSubtasks.push(newSub);
         }
+        addTask({
+          ...created,
+          subtasks: createdSubtasks,
+          assignee: teamMembers.find(m => m.id === assigneeId) || null,
+        });
       } else {
         const updated = await dataService.updateTask(task!.id, updates);
         // Update global store
@@ -878,7 +859,13 @@ export default function TaskDetailModal() {
                       <span style={{ color: textColor }}>🔁 Repeat</span>
                       <select
                         value={selectedRepeat}
-                        onChange={(e) => setSelectedRepeat(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedRepeat(e.target.value);
+                          // Set sensible defaults for recurrence_day
+                          if (e.target.value === 'weekly') setRecurrenceDay(6); // Saturday
+                          else if (e.target.value === 'monthly') setRecurrenceDay(1); // 1st of month
+                          else setRecurrenceDay(null);
+                        }}
                         className="px-2 py-1 rounded-lg text-xs"
                         style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
                       >
@@ -889,6 +876,40 @@ export default function TaskDetailModal() {
                         <option value="yearly">Yearly</option>
                       </select>
                     </div>
+
+                    {/* Recurrence Day Picker — shown for weekly and monthly */}
+                    {selectedRepeat === 'weekly' && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span style={{ color: textColor }}>📆 Day of Week</span>
+                        <select
+                          value={recurrenceDay ?? 6}
+                          onChange={(e) => setRecurrenceDay(parseInt(e.target.value))}
+                          className="px-2 py-1 rounded-lg text-xs"
+                          style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
+                        >
+                          <option value={1}>Monday</option>
+                          <option value={2}>Tuesday</option>
+                          <option value={3}>Wednesday</option>
+                          <option value={4}>Thursday</option>
+                          <option value={5}>Friday</option>
+                          <option value={6}>Saturday</option>
+                        </select>
+                      </div>
+                    )}
+                    {selectedRepeat === 'monthly' && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span style={{ color: textColor }}>📆 Day of Month</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={recurrenceDay ?? 1}
+                          onChange={(e) => setRecurrenceDay(parseInt(e.target.value) || 1)}
+                          className="px-2 py-1 rounded-lg text-xs w-16 text-center"
+                          style={{ background: inputBg, color: textColor, border: `1px solid ${borderColor}` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -938,6 +959,7 @@ export default function TaskDetailModal() {
                       setSelectedTime('none');
                       setSelectedReminder('none');
                       setSelectedRepeat('none');
+                      setRecurrenceDay(null);
                       setDurationMinutes(0);
                       setIsDatePickerOpen(false);
                     }}

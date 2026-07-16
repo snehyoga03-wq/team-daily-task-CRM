@@ -61,6 +61,9 @@ export interface DbTask {
   duration_minutes?: number | null;
   is_recurring?: boolean;
   recurrence_pattern?: string | null;
+  recurrence_day?: number | null;
+  source_task_id?: string | null;
+  is_carry_forward?: boolean;
   tags: string[];
   estimated_hours: number | null;
   actual_hours: number | null;

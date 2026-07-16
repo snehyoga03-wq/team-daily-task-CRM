@@ -4,124 +4,251 @@ import { useAuthStore } from '@/lib/auth';
 import * as dataService from '@/lib/dataService';
 import { DbTask } from '@/lib/supabase';
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function isSunday(date: Date): boolean {
+  return date.getDay() === 0; // 0 = Sunday
+}
+
+function isWorkingDay(date: Date): boolean {
+  return !isSunday(date); // Mon-Sat = working days
+}
+
+function toDateStr(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// ─── Main Hook ──────────────────────────────────────────────────────
+
 export function useRecurringTasks() {
   const { tasks, setTasks, dataLoaded } = useAppStore();
   const { currentUser } = useAuthStore();
-  const cloningInProgress = useRef<Set<string>>(new Set());
+  const generationInProgress = useRef(false);
+  const lastRunDate = useRef<string>('');
 
   useEffect(() => {
-    if (!currentUser || !dataLoaded || !tasks.length) return;
+    if (!currentUser || !dataLoaded) return;
 
-    const checkAndCloneRecurring = async () => {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      
-      // Group recurring tasks by: assignee_id + title + recurrence_pattern
-      const recurringGroups = new Map<string, typeof tasks>();
+    const todayStr = toDateStr(new Date());
 
-      for (const task of tasks) {
-        if (!task.is_recurring || !task.recurrence_pattern) continue;
-        const key = `${task.assignee_id || 'unassigned'}|${task.title.trim().toLowerCase()}|${task.recurrence_pattern}`;
-        if (!recurringGroups.has(key)) {
-          recurringGroups.set(key, []);
+    // Only run once per calendar day per session
+    if (lastRunDate.current === todayStr) return;
+    if (generationInProgress.current) return;
+
+    const runEngine = async () => {
+      generationInProgress.current = true;
+
+      try {
+        // 1. Fetch all recurring templates for this user (and unassigned team ones)
+        const templates = await dataService.fetchRecurringTemplates();
+        // Filter to templates relevant to this user or their team
+        const userTemplates = templates.filter(
+          (t) => t.assignee_id === currentUser.id || (!t.assignee_id && t.team_id)
+        );
+
+        if (userTemplates.length === 0) {
+          lastRunDate.current = todayStr;
+          generationInProgress.current = false;
+          return;
         }
-        recurringGroups.get(key)!.push(task);
-      }
 
-      let clonedCount = 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let generated = 0;
 
-      for (const [key, groupTasks] of recurringGroups.entries()) {
-        if (cloningInProgress.current.has(key)) continue;
+        // 2. Generate tasks for today, backfill up to 7 days, and pre-generate 14 days ahead
+        const datesToCheck: string[] = [];
+        for (let i = -6; i <= 14; i++) {
+          const d = addDays(today, i);
+          datesToCheck.push(toDateStr(d));
+        }
 
-        // Find the instance in this series with the latest due_date
-        let latestTask = groupTasks[0];
-        for (const t of groupTasks) {
-          if ((t.due_date || '') > (latestTask.due_date || '')) {
-            latestTask = t;
+        for (const template of userTemplates) {
+          const pattern = (template.recurrence_pattern || '').toLowerCase();
+
+          if (pattern === 'daily') {
+            generated += await generateDailyInstances(template, datesToCheck, currentUser.id);
+          } else if (pattern === 'weekly') {
+            generated += await generateWeeklyInstances(template, datesToCheck, currentUser.id);
+          } else if (pattern === 'monthly') {
+            generated += await generateMonthlyInstances(template, datesToCheck, currentUser.id);
           }
         }
 
-        const latestDueDate = latestTask.due_date || '';
-        if (!latestDueDate || latestDueDate >= todayStr) {
-          // Today's or a future instance already exists! No need to clone.
-          continue;
-        }
-
-        // Determine if we should clone based on recurrence schedule
-        let shouldClone = false;
-        const pattern = latestTask.recurrence_pattern;
-
-        if (pattern === 'daily') {
-          // If latest due date is before today, we need a clone for today
-          shouldClone = latestDueDate < todayStr;
-        } else if (pattern === 'weekly') {
-          // If 7 or more days have passed since latest due date
-          const diffDays = Math.floor(
-            (new Date(todayStr).getTime() - new Date(latestDueDate).getTime()) / (1000 * 60 * 60 * 24)
-          );
-          shouldClone = diffDays >= 7;
-        } else if (pattern === 'monthly') {
-          // If we are in a newer month than latest due date
-          const latestMonth = latestDueDate.slice(0, 7);
-          const currentMonth = todayStr.slice(0, 7);
-          shouldClone = currentMonth > latestMonth;
-        }
-
-        if (shouldClone) {
-          cloningInProgress.current.add(key);
-
-          try {
-            console.log(`[RecurringTasks] Generating fresh clone for: "${latestTask.title}" (${pattern}) for ${todayStr}`);
-
-            const newTaskPayload: Partial<DbTask> = {
-              title: latestTask.title,
-              description: latestTask.description || null,
-              assignee_id: latestTask.assignee_id || null,
-              creator_id: latestTask.creator_id || null,
-              team_id: latestTask.team_id || null,
-              priority: latestTask.priority || 'medium',
-              status: 'todo', // Fresh copy is always 'todo'
-              due_date: todayStr,
-              due_time: latestTask.due_time || null,
-              reminder: latestTask.reminder || 'none',
-              is_recurring: true,
-              recurrence_pattern: latestTask.recurrence_pattern,
-              tags: latestTask.tags || [],
-              order_index: latestTask.order_index || 0,
-            };
-
-            const createdTask = await dataService.createTask(newTaskPayload);
-            clonedCount++;
-
-            // If the template task had subtasks, clone them too
-            if (latestTask.subtasks && latestTask.subtasks.length > 0) {
-              for (const st of latestTask.subtasks) {
-                await dataService.createSubtask({
-                  task_id: createdTask.id,
-                  title: st.title,
-                  is_completed: false, // Fresh subtasks start unchecked
-                  order_index: st.order_index || 0,
-                });
-              }
-            }
-          } catch (err) {
-            console.error(`Failed to clone recurring task "${latestTask.title}":`, err);
-            cloningInProgress.current.delete(key); // Allow retry on failure
-          }
-        }
-      }
-
-      if (clonedCount > 0) {
-        console.log(`[RecurringTasks] Successfully generated ${clonedCount} fresh recurring task instances.`);
-        // Refresh store with newly created tasks
-        try {
+        if (generated > 0) {
+          console.log(`[RecurringEngine] Generated ${generated} task instances.`);
           const freshTasks = await dataService.fetchTasks();
           setTasks(freshTasks);
-        } catch (err) {
-          console.error('Failed to reload tasks after recurring clone:', err);
         }
+
+        lastRunDate.current = todayStr;
+      } catch (err) {
+        console.error('[RecurringEngine] Error:', err);
+      } finally {
+        generationInProgress.current = false;
       }
     };
 
-    checkAndCloneRecurring();
-  }, [tasks, currentUser, dataLoaded, setTasks]);
+    runEngine();
+  }, [currentUser, dataLoaded, tasks.length, setTasks]);
+}
+
+// ─── Daily Task Generation ──────────────────────────────────────────
+
+async function generateDailyInstances(
+  template: DbTask,
+  datesToCheck: string[],
+  userId: string
+): Promise<number> {
+  let count = 0;
+
+  for (const dateStr of datesToCheck) {
+    const date = new Date(dateStr + 'T00:00:00');
+
+    // Skip Sundays
+    if (isSunday(date)) continue;
+
+    // Check if user is on leave
+    const onLeave = await dataService.fetchLeaveStatus(userId, dateStr);
+    if (onLeave) continue;
+
+    // Check if instance already exists
+    const exists = await dataService.checkInstanceExists(template.id, dateStr);
+    if (exists) continue;
+
+    // Also check for legacy instances (before source_task_id was added)
+    // by matching title + assignee + date
+    const existingForDate = await dataService.fetchTaskInstancesForDate(userId, dateStr);
+    const alreadyHas = existingForDate.some(
+      (t) => t.title === template.title && t.recurrence_pattern === 'daily'
+    );
+    if (alreadyHas) continue;
+
+    // Create the instance
+    await dataService.createTask({
+      title: template.title,
+      description: template.description || null,
+      assignee_id: template.assignee_id || null,
+      creator_id: template.creator_id || null,
+      team_id: template.team_id || null,
+      priority: template.priority || 'medium',
+      status: 'todo',
+      due_date: dateStr,
+      due_time: template.due_time || null,
+      reminder: template.reminder || 'none',
+      is_recurring: true,
+      recurrence_pattern: 'daily',
+      recurrence_day: template.recurrence_day,
+      source_task_id: template.id,
+      tags: template.tags || [],
+      order_index: template.order_index || 0,
+    });
+    count++;
+  }
+
+  return count;
+}
+
+// ─── Weekly Task Generation ─────────────────────────────────────────
+
+async function generateWeeklyInstances(
+  template: DbTask,
+  datesToCheck: string[],
+  userId: string
+): Promise<number> {
+  const targetDay = template.recurrence_day ?? 6; // Default Saturday
+  let count = 0;
+
+  for (const dateStr of datesToCheck) {
+    const date = new Date(dateStr + 'T00:00:00');
+    if (date.getDay() !== targetDay) continue;
+
+    // Check if instance already exists
+    const exists = await dataService.checkInstanceExists(template.id, dateStr);
+    if (exists) continue;
+
+    // Legacy check
+    const existingForDate = await dataService.fetchTaskInstancesForDate(userId, dateStr);
+    const alreadyHas = existingForDate.some(
+      (t) => t.title === template.title && t.recurrence_pattern === 'weekly'
+    );
+    if (alreadyHas) continue;
+
+    await dataService.createTask({
+      title: template.title,
+      description: template.description || null,
+      assignee_id: template.assignee_id || null,
+      creator_id: template.creator_id || null,
+      team_id: template.team_id || null,
+      priority: template.priority || 'medium',
+      status: 'todo',
+      due_date: dateStr,
+      due_time: template.due_time || null,
+      reminder: template.reminder || 'none',
+      is_recurring: true,
+      recurrence_pattern: 'weekly',
+      recurrence_day: template.recurrence_day,
+      source_task_id: template.id,
+      tags: template.tags || [],
+      order_index: template.order_index || 0,
+    });
+    count++;
+  }
+  return count;
+}
+
+// ─── Monthly Task Generation ────────────────────────────────────────
+
+async function generateMonthlyInstances(
+  template: DbTask,
+  datesToCheck: string[],
+  userId: string
+): Promise<number> {
+  const targetDay = template.recurrence_day;
+  if (!targetDay) return 0;
+
+  let count = 0;
+
+  for (const dateStr of datesToCheck) {
+    const date = new Date(dateStr + 'T00:00:00');
+    if (date.getDate() !== targetDay) continue;
+
+    // Check if instance already exists
+    const exists = await dataService.checkInstanceExists(template.id, dateStr);
+    if (exists) continue;
+
+    // Legacy check
+    const existingForDate = await dataService.fetchTaskInstancesForDate(userId, dateStr);
+    const alreadyHas = existingForDate.some(
+      (t) => t.title === template.title && t.recurrence_pattern === 'monthly'
+    );
+    if (alreadyHas) continue;
+
+    await dataService.createTask({
+      title: template.title,
+      description: template.description || null,
+      assignee_id: template.assignee_id || null,
+      creator_id: template.creator_id || null,
+      team_id: template.team_id || null,
+      priority: template.priority || 'medium',
+      status: 'todo',
+      due_date: dateStr,
+      due_time: template.due_time || null,
+      reminder: template.reminder || 'none',
+      is_recurring: true,
+      recurrence_pattern: 'monthly',
+      recurrence_day: template.recurrence_day,
+      source_task_id: template.id,
+      tags: template.tags || [],
+      order_index: template.order_index || 0,
+    });
+    count++;
+  }
+  return count;
 }

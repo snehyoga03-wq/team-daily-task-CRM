@@ -33,12 +33,41 @@ export default function DashboardView() {
     { label: 'Done Rate', value: tasks.length > 0 ? `${Math.round((doneTasks / tasks.length) * 100)}%` : '—', sub: 'completion', icon: '📈', color: '#22c55e', delta: '' },
   ];
 
-  // Use real tasks from DB for "today's tasks"
-  const todaysTasks = tasks.slice(0, 6).map(t => ({
+  // Smart today's tasks: carry-forward + today's tasks
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isSundayToday = new Date().getDay() === 0;
+  
+  const myTasks = tasks.filter(t => 
+    t.assignee_id === currentUser?.id && 
+    !(t.is_recurring && !t.source_task_id) // hide templates
+  );
+  
+  // Carry-forward: overdue, not done, skip Sunday daily tasks
+  const carryForward = myTasks.filter(t => 
+    t.due_date && t.due_date < todayStr && t.status !== 'done' &&
+    !(t.recurrence_pattern === 'daily' && new Date(t.due_date + 'T00:00:00').getDay() === 0)
+  ).sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+
+  // Today's tasks, not done
+  const todayTasksRaw = myTasks.filter(t => t.due_date === todayStr && t.status !== 'done');
+  const todayOneTime = todayTasksRaw.filter(t => !t.is_recurring);
+  const todayDaily = isSundayToday ? [] : todayTasksRaw.filter(t => t.recurrence_pattern === 'daily');
+  const todayWeekly = todayTasksRaw.filter(t => t.recurrence_pattern === 'weekly');
+  const todayMonthly = todayTasksRaw.filter(t => t.recurrence_pattern === 'monthly');
+
+  const orderedTodayTasks = [
+    ...carryForward.map(t => ({ ...t, _section: '⏪ Carry Forward' })),
+    ...todayOneTime.map(t => ({ ...t, _section: '📌 One-Time' })),
+    ...todayDaily.map(t => ({ ...t, _section: '📅 Daily' })),
+    ...todayWeekly.map(t => ({ ...t, _section: '📅 Weekly' })),
+    ...todayMonthly.map(t => ({ ...t, _section: '📅 Monthly' })),
+  ].slice(0, 8);
+
+  const todaysTasks = orderedTodayTasks.map(t => ({
     id: t.id,
     title: t.title,
     priority: t.priority,
-    time: '',
+    section: (t as any)._section || '',
     done: t.status === 'done',
   }));
 
@@ -104,6 +133,7 @@ export default function DashboardView() {
                   {t.done && '✓'}
                 </div>
                 <span className={`text-xs flex-1 ${t.done ? 'line-through' : ''}`} style={{ color: t.done ? mutedColor : textColor }}>{t.title}</span>
+                {t.section && <span className="text-[9px] px-1.5 py-0.5 rounded-md font-medium" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: mutedColor }}>{t.section}</span>}
                 <span className={`badge badge-${t.priority}`}>{t.priority}</span>
               </div>
             ))}

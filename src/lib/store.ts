@@ -153,21 +153,44 @@ interface AppState {
   setSelectedTaskId: (id: string | null) => void;
 }
 
+const priorityRank: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+
 const sortTasksBySchedule = (tasksList: Task[]) => {
-  const getRank = (t: Task) => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const getSection = (t: Task) => {
+    const isDone = t.status === 'done';
+    if (isDone) return 99; // completed always last
+
+    const isOverdue = t.due_date && t.due_date < todayStr;
+    if (isOverdue) return 0; // carry-forward first
+
     const pattern = (t.recurrence_pattern || '').toLowerCase();
-    const tags = (t.tags || []).map(tag => tag.toLowerCase());
-    const title = (t.title || '').toLowerCase();
-    if (pattern === 'daily' || tags.includes('daily') || title.includes('daily')) return 1;
-    if (pattern === 'weekly' || tags.includes('weekly') || title.includes('weekly')) return 2;
-    if (pattern === 'monthly' || tags.includes('monthly') || title.includes('monthly')) return 3;
-    return 4;
+    if (!t.is_recurring) return 1; // one-time
+    if (pattern === 'daily') return 2;
+    if (pattern === 'weekly') return 3;
+    if (pattern === 'monthly') return 4;
+    return 5;
   };
+
   return [...tasksList].sort((a, b) => {
-    const rankA = getRank(a);
-    const rankB = getRank(b);
-    if (rankA !== rankB) return rankA - rankB;
-    return (a.order_index || 0) - (b.order_index || 0);
+    const sA = getSection(a);
+    const sB = getSection(b);
+    if (sA !== sB) return sA - sB;
+
+    // Carry-forward: oldest first
+    if (sA === 0) {
+      const dateA = a.due_date || '';
+      const dateB = b.due_date || '';
+      if (dateA !== dateB) return dateA < dateB ? -1 : 1;
+    }
+
+    // Within same section: priority then creation time
+    const pA = priorityRank[a.priority] ?? 2;
+    const pB = priorityRank[b.priority] ?? 2;
+    if (pA !== pB) return pA - pB;
+
+    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
   });
 };
 

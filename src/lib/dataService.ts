@@ -28,6 +28,53 @@ export async function fetchTasks() {
   });
 }
 
+// ─── RECURRING ENGINE HELPERS ───────────────────────────────────
+
+export async function fetchRecurringTemplates(userId?: string) {
+  let query = supabase
+    .from('tasks')
+    .select('*')
+    .eq('is_recurring', true)
+    .is('source_task_id', null);
+  if (userId) {
+    query = query.eq('assignee_id', userId);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  return data as DbTask[];
+}
+
+export async function checkInstanceExists(sourceTaskId: string, dueDate: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from('tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('source_task_id', sourceTaskId)
+    .eq('due_date', dueDate);
+  if (error) throw error;
+  return (count || 0) > 0;
+}
+
+export async function fetchTaskInstancesForDate(userId: string, dueDate: string) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('assignee_id', userId)
+    .eq('due_date', dueDate);
+  if (error) throw error;
+  return data as DbTask[];
+}
+
+export async function fetchLeaveStatus(userId: string, date: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('status')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle();
+  if (error) return false;
+  return data?.status === 'leave';
+}
+
 export async function fetchSubtasks(taskId: string) {
   const { data, error } = await supabase
     .from('subtasks')
@@ -577,65 +624,7 @@ export function subscribeToNotifications(userId: string, callback: (payload: any
     .subscribe();
 }
 
-// ─── AUTO-SEED SOCIAL MEDIA DAILY STANDUP TASKS ────────────────────
-export async function ensureSocialMediaDailyTasks(creatorId?: string) {
-  try {
-    const { data: existingTeams } = await supabase.from('teams').select('*');
-    let smTeam = (existingTeams || []).find((t: any) => t.name.toLowerCase().includes('social media'));
-    
-    if (!smTeam) {
-      const { data: newTeam, error } = await supabase.from('teams').insert({
-        name: 'Social Media Management',
-        description: 'Social Media & Content Management Team',
-        color: '#ec4899'
-      }).select().single();
-      if (!error && newTeam) {
-        smTeam = newTeam;
-      }
-    }
-    
-    if (!smTeam) return;
-
-    const { data: existingTasks } = await supabase.from('tasks').select('*').eq('team_id', smTeam.id);
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    const hasMorning = (existingTasks || []).some((t: any) => t.title.toLowerCase().includes('morning standup'));
-    if (!hasMorning) {
-      await createTask({
-        title: 'morning Standup meeting',
-        description: 'Daily morning alignment and task planning for Social Media Management team',
-        status: 'todo',
-        priority: 'high',
-        team_id: smTeam.id,
-        creator_id: creatorId || null,
-        is_recurring: true,
-        recurrence_pattern: 'daily',
-        tags: ['daily', 'standup', 'Planned'],
-        order_index: -10,
-        due_date: todayStr
-      });
-    }
-
-    const hasEvening = (existingTasks || []).some((t: any) => t.title.toLowerCase().includes('evening standup'));
-    if (!hasEvening) {
-      await createTask({
-        title: 'Evening standup meeting',
-        description: 'Daily evening review of content output, reels, and pending social media tasks',
-        status: 'todo',
-        priority: 'high',
-        team_id: smTeam.id,
-        creator_id: creatorId || null,
-        is_recurring: true,
-        recurrence_pattern: 'daily',
-        tags: ['daily', 'standup', 'Planned'],
-        order_index: -9,
-        due_date: todayStr
-      });
-    }
-  } catch (err) {
-    console.error('Failed to auto-seed Social Media daily standup tasks:', err);
-  }
-}
+// ensureSocialMediaDailyTasks removed — V2 recurring engine handles all generation
 
 // ─── APP SETTINGS & WHATSAPP CONFIG ────────────────────────────────
 export async function fetchAppSettings(key: string) {
