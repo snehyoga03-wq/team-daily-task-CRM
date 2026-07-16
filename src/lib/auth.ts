@@ -70,28 +70,9 @@ export const useAuthStore = create<AuthState>()(
             return true;
           }
 
-          // User doesn't exist — create new team member
-          const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert({
-              full_name: name.trim(),
-              phone: cleanPhone,
-              role: 'member',
-              xp_points: 0,
-              level: 1,
-              streak_days: 0,
-              is_active: true,
-            })
-            .select()
-            .single();
-
-          if (insertError) {
-            set({ error: insertError.message, isLoading: false });
-            return false;
-          }
-
-          set({ currentUser: newUser, isLoading: false });
-          return true;
+          // User doesn't exist — block entry
+          set({ error: 'User not found. Contact admin for the correct user ID.', isLoading: false });
+          return false;
         } catch (err: any) {
           set({ error: err.message || 'Login failed', isLoading: false });
           return false;

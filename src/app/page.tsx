@@ -5,7 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
 import * as dataService from '@/lib/dataService';
 import { useTaskReminders } from '@/hooks/useTaskReminders';
-import { useRecurringTasks } from '@/hooks/useRecurringTasks';
+
 import LoginScreen from '@/components/auth/LoginScreen';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -42,11 +42,11 @@ export default function Home() {
 
   // Initialize task reminders and automatic recurring task cloning
   useTaskReminders();
-  useRecurringTasks();
 
-  // Detect mobile
+
+  // Detect mobile (using 1024px to ensure responsiveness at high zoom levels)
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => setIsMobile(window.innerWidth < 1024);
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
@@ -189,20 +189,20 @@ export default function Home() {
       color: isDark ? '#e4e4e7' : '#1e1b2e',
       minHeight: '100vh',
     }}>
-      {/* Sidebar - hidden on mobile */}
-      <div className="hidden md:block">
+      {/* Sidebar - hidden on mobile (lg breakpoint) */}
+      <div className="hidden lg:block">
         <Sidebar />
       </div>
 
       {/* Main Area */}
-      <div className="pb-20 md:pb-0 transition-all duration-300" style={{
+      <div className="pb-20 lg:pb-0 transition-all duration-300" style={{
         marginLeft: isMobile ? 0 : (sidebarCollapsed ? 72 : 260),
       }}>
         <Header />
 
-        <div className="flex flex-col md:flex-row">
+        <div className="flex flex-col lg:flex-row">
           {/* Main Content */}
-          <main className="flex-1 p-4 md:p-6 overflow-y-auto" style={{ minHeight: 'calc(100vh - 120px)' }}>
+          <main className="flex-1 p-4 lg:p-6 overflow-y-auto" style={{ minHeight: 'calc(100vh - 120px)' }}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeView}
@@ -226,7 +226,7 @@ export default function Home() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-2 pt-2 border-t" style={{
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-2 pt-2 border-t" style={{
         background: isDark ? 'rgba(18,18,26,0.95)' : 'rgba(255,255,255,0.95)',
         borderColor: isDark ? '#2a2a3a' : '#e5e2f0',
         backdropFilter: 'blur(10px)',

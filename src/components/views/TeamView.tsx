@@ -21,11 +21,14 @@ export default function TeamView() {
   const [selectedPhone, setSelectedPhone] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [selectedRole, setSelectedRole] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('');
+  const [selectedShift, setSelectedShift] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('all');
 
   // Create Member Modal State
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
-  const [newMemberForm, setNewMemberForm] = useState({ full_name: '', phone: '', email: '', role: 'member', team_id: '' });
+  const [newMemberForm, setNewMemberForm] = useState({ full_name: '', phone: '', email: '', role: 'member', team_id: '', department: '', designation: '', shift: '' });
   const [loading, setLoading] = useState<boolean>(false);
 
   const getTeamName = (teamId: string | null) => {
@@ -45,6 +48,9 @@ export default function TeamView() {
       if (selectedPhone !== undefined) updates.phone = cleanPhoneNumber(selectedPhone);
       if (selectedTeam !== undefined) updates.team_id = selectedTeam || null;
       if (selectedRole) updates.role = selectedRole;
+      if (selectedDepartment !== undefined) updates.department = selectedDepartment.trim() || null;
+      if (selectedDesignation !== undefined) updates.designation = selectedDesignation.trim() || null;
+      if (selectedShift !== undefined) updates.shift = selectedShift.trim() || null;
       await dataService.updateUser(memberId, updates);
       const members = await dataService.fetchTeamMembers();
       setTeamMembers(members);
@@ -60,6 +66,9 @@ export default function TeamView() {
     setSelectedPhone(member.phone || '');
     setSelectedTeam(member.team_id || '');
     setSelectedRole(member.role || 'member');
+    setSelectedDepartment(member.department || '');
+    setSelectedDesignation(member.designation || '');
+    setSelectedShift(member.shift || '');
   };
 
   const handleCreateMember = async (e: React.FormEvent) => {
@@ -74,6 +83,9 @@ export default function TeamView() {
         email: newMemberForm.email.trim() || null,
         role: newMemberForm.role as 'admin' | 'member',
         team_id: newMemberForm.team_id || null,
+        department: newMemberForm.department.trim() || null,
+        designation: newMemberForm.designation.trim() || null,
+        shift: newMemberForm.shift.trim() || null,
         xp_points: 0,
         level: 1,
         streak_days: 0,
@@ -82,7 +94,7 @@ export default function TeamView() {
       const members = await dataService.fetchTeamMembers();
       setTeamMembers(members);
       setShowCreateModal(false);
-      setNewMemberForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '' });
+      setNewMemberForm({ full_name: '', phone: '', email: '', role: 'member', team_id: '', department: '', designation: '', shift: '' });
     } catch (err: any) {
       alert(err.message || 'Failed to create member');
     }
@@ -103,7 +115,9 @@ export default function TeamView() {
               <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>ADMIN</span>
             )}
           </div>
-          <p className="text-[11px] truncate" style={{ color: mutedColor }}>{getTeamName(member.team_id)}</p>
+          <p className="text-[11px] truncate" style={{ color: mutedColor }}>
+            {member.designation || getTeamName(member.team_id)} {member.department && `• ${member.department}`}
+          </p>
         </div>
         {/* Admin edit button */}
         {isAdmin && editingMember !== member.id && (
@@ -137,25 +151,50 @@ export default function TeamView() {
               style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
             />
           </div>
-          <div>
-            <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Team</label>
-            <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)}
-              className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none appearance-none"
-              style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
-            >
-              <option value="">Unassigned</option>
-              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Team</label>
+              <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none appearance-none"
+                style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+              >
+                <option value="">Unassigned</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Role</label>
+              <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none appearance-none"
+                style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
           <div>
-            <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Role</label>
-            <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)}
-              className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none appearance-none"
+            <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Department</label>
+            <input type="text" value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)}
+              className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none"
               style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Designation</label>
+              <input type="text" value={selectedDesignation} onChange={e => setSelectedDesignation(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none"
+                style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-medium block mb-1" style={{ color: mutedColor }}>Shift</label>
+              <input type="text" value={selectedShift} onChange={e => setSelectedShift(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg text-[11px] outline-none"
+                style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+              />
+            </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => setEditingMember(null)}
@@ -388,6 +427,33 @@ export default function TeamView() {
                       <option value="">Unassigned</option>
                       {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium block mb-1.5" style={{ color: mutedColor }}>Department</label>
+                  <input type="text" value={newMemberForm.department} onChange={e => setNewMemberForm({ ...newMemberForm, department: e.target.value })}
+                    placeholder="e.g. Engineering"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                    style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium block mb-1.5" style={{ color: mutedColor }}>Designation</label>
+                    <input type="text" value={newMemberForm.designation} onChange={e => setNewMemberForm({ ...newMemberForm, designation: e.target.value })}
+                      placeholder="e.g. Senior Dev"
+                      className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium block mb-1.5" style={{ color: mutedColor }}>Shift</label>
+                    <input type="text" value={newMemberForm.shift} onChange={e => setNewMemberForm({ ...newMemberForm, shift: e.target.value })}
+                      placeholder="e.g. Morning Shift"
+                      className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ background: isDark ? '#12121a' : '#f5f3ff', color: textColor, border: `1px solid ${borderColor}` }}
+                    />
                   </div>
                 </div>
 

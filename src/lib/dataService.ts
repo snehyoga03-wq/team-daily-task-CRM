@@ -479,6 +479,74 @@ export async function updateAttendanceStatus(userId: string, status: DbAttendanc
   return result as DbAttendance;
 }
 
+export async function startBreak(userId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+
+  // 1. Insert into attendance_logs
+  const { data: logData, error: logError } = await supabase
+    .from('attendance_logs')
+    .insert({
+      user_id: userId,
+      date: today,
+      action_type: 'break',
+      started_at: now
+    })
+    .select()
+    .single();
+
+  if (logError) throw logError;
+
+  // 2. Update attendance status
+  const attData = await updateAttendanceStatus(userId, 'on_break');
+  return { logData, attData };
+}
+
+export async function endBreak(userId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+
+  // 1. Find the active break log and update it
+  const { data: activeLog, error: fetchError } = await supabase
+    .from('attendance_logs')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .eq('action_type', 'break')
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  let logData = null;
+  if (activeLog) {
+    const { data, error: updateError } = await supabase
+      .from('attendance_logs')
+      .update({ ended_at: now })
+      .eq('id', activeLog.id)
+      .select()
+      .single();
+    if (updateError) throw updateError;
+    logData = data;
+  }
+
+  // 2. Update attendance status back to present
+  const attData = await updateAttendanceStatus(userId, 'present');
+  return { logData, attData };
+}
+
+export async function fetchBreakLogs(date: string) {
+  const { data, error } = await supabase
+    .from('attendance_logs')
+    .select('*')
+    .eq('date', date)
+    .eq('action_type', 'break');
+  if (error) throw error;
+  return data;
+}
+
 // ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────────
 
 export function subscribeToTasks(callback: (payload: any) => void) {

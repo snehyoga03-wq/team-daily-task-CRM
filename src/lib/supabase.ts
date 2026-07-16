@@ -30,6 +30,9 @@ export interface DbUser {
   avatar_url: string | null;
   role: string;
   team_id: string | null;
+  department?: string | null;
+  designation?: string | null;
+  shift?: string | null;
   tag?: string | null;
   xp_points: number;
   level: number;
@@ -150,6 +153,16 @@ export interface DbAttendance {
   check_out: string | null;
   status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'on_break' | 'checked_out';
   notes: string | null;
+  created_at: string;
+}
+
+export interface DbAttendanceLog {
+  id: string;
+  user_id: string;
+  date: string;
+  action_type: 'break';
+  started_at: string;
+  ended_at: string | null;
   created_at: string;
 }
 

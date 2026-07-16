@@ -157,8 +157,8 @@ export default function LoginScreen() {
             )}
           </motion.button>
 
-          <p className="text-[10px] text-center" style={{ color: '#6b6880' }}>
-            New members are auto-registered on first login
+          <p className="text-center text-xs text-white/50 mt-8">
+            Contact your admin if you don't know your user ID.
           </p>
         </motion.form>
 

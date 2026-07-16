@@ -40,7 +40,7 @@ export default function GanttBoard({ filteredTasks }: { filteredTasks: Task[] })
       </div>
 
       <div className="flex-1 overflow-x-auto">
-        <div className="min-w-[800px]">
+        <div className="w-full">
           {/* Header Row (Dates) */}
           <div className="flex border-b" style={{ borderColor }}>
             <div className="w-[250px] flex-shrink-0 p-3 border-r font-semibold text-xs flex items-center" style={{ borderColor, color: mutedColor }}>

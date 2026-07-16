@@ -20,6 +20,7 @@ const priorityColors = { urgent: '#f43f5e', high: '#f97316', medium: '#f59e0b', 
 export default function TasksView() {
   const { theme, tasks, taskView, setTaskView, updateTask, setQuickAddOpen, setSelectedTaskId, teams } = useAppStore();
   const { currentUser } = useAuthStore();
+  const isAdmin = currentUser?.role === 'admin';
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
   const mutedColor = isDark ? '#71717a' : '#6b6880';
@@ -64,66 +65,30 @@ export default function TasksView() {
     }
 
     if (selectedDate) {
-      const pattern = (t.recurrence_pattern || '').toLowerCase();
-      const tags = (t.tags || []).map(tag => tag.toLowerCase());
-      const title = (t.title || '').toLowerCase();
-      
-      const isDaily = pattern === 'daily' || tags.includes('daily') || title.includes('daily') || title.includes('standup');
-      const isWeekly = pattern === 'weekly' || tags.includes('weekly') || title.includes('weekly');
-      const isMonthly = pattern === 'monthly' || tags.includes('monthly') || title.includes('monthly');
-      
-      if (isDaily) {
-        // Daily tasks occur every single day! Always include them when viewing any date.
-        return true;
-      }
-      
       const state = getTaskState(t);
-      
+      const sDate = new Date(selectedDate);
+
       if (!t.due_date) {
         // Show tasks without a due date until they are completed
         return !state.isCompleted;
       }
+
+      const tDate = new Date(t.due_date);
       
-      // Compare string prefix first to avoid timezone offset shifts (e.g. UTC vs IST)
+      // Exact date match
       if (t.due_date.slice(0, 10) === selectedDate.slice(0, 10)) {
         return true;
       }
       
-      const tDate = new Date(t.due_date);
-      const sDate = new Date(selectedDate);
-
-      // If task is overdue and NOT completed, show it on today's view or any selected view that is after its due date
-      // This rolls over uncompleted tasks to the next day
-      if (!state.isCompleted && tDate < sDate) {
-        return true;
-      }
-      
-      if (isMonthly) {
-        // Show monthly tasks if they fall in the same month and year as the selected date
-        if (tDate.getFullYear() !== sDate.getFullYear() || tDate.getMonth() !== sDate.getMonth()) {
-          return false;
-        }
-      } else if (isWeekly) {
-        // Show weekly tasks if they fall within the same calendar week as the selected date
-        const getWeekStart = (d: Date) => {
-          const date = new Date(d);
-          const day = date.getDay();
-          const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-          return new Date(date.setDate(diff)).setHours(0, 0, 0, 0);
-        };
-        if (getWeekStart(tDate) !== getWeekStart(sDate)) {
-          return false;
-        }
-      } else {
-        // Normal task: must match exact year, month, and day
-        if (
-          tDate.getFullYear() !== sDate.getFullYear() ||
-          tDate.getMonth() !== sDate.getMonth() ||
-          tDate.getDate() !== sDate.getDate()
-        ) {
-          return false;
+      // Overdue rollover for all tasks
+      if (!state.isCompleted) {
+        const realTodayStr = new Date().toISOString().slice(0, 10);
+        // Only roll over if it is genuinely overdue in real time AND before the selected date
+        if (t.due_date.slice(0, 10) < realTodayStr && t.due_date.slice(0, 10) < selectedDate.slice(0, 10)) {
+          return true;
         }
       }
+      return false;
     }
 
     if (filter === 'all') return true;
@@ -138,15 +103,33 @@ export default function TasksView() {
     return true;
   });
 
-  const overdueCount = tasks.filter(t => getTaskState(t).isOverdue).length;
+  const overdueCount = filteredTasks.filter(t => getTaskState(t).isOverdue).length;
 
   const sortedFilteredTasks = [...filteredTasks].sort((a, b) => {
     // completed tasks at the bottom
     const aCompleted = a.status === 'done';
     const bCompleted = b.status === 'done';
     if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+
+    // Grouping: Normal (0) > Daily (1) > Weekly (2) > Monthly (3)
+    const getTaskType = (t: Task) => {
+      const pattern = (t.recurrence_pattern || '').toLowerCase();
+      const tags = (t.tags || []).map(tag => tag.toLowerCase());
+      const title = (t.title || '').toLowerCase();
+      if (pattern === 'daily' || tags.includes('daily') || title.includes('daily') || title.includes('standup')) return 1;
+      if (pattern === 'weekly' || tags.includes('weekly') || title.includes('weekly')) return 2;
+      if (pattern === 'monthly' || tags.includes('monthly') || title.includes('monthly')) return 3;
+      return 0; // Normal/New task
+    };
+
+    const typeA = getTaskType(a);
+    const typeB = getTaskType(b);
     
-    // newly created at the top
+    if (typeA !== typeB) {
+      return typeA - typeB; // Sort groups
+    }
+    
+    // Within the same group, newly created at the top
     const aCreated = new Date(a.created_at || 0).getTime();
     const bCreated = new Date(b.created_at || 0).getTime();
     return bCreated - aCreated;
@@ -186,14 +169,14 @@ export default function TasksView() {
         <div>
           <h1 className="text-xl font-bold" style={{ color: textColor }}>Task Management</h1>
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.1)', color: '#a855f7' }}>Total: {tasks.length}</span>
-            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.1)', color: '#10b981' }}>Done: {tasks.filter(t => t.status === 'done').length}</span>
+            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.1)', color: '#a855f7' }}>Total: {filteredTasks.length}</span>
+            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.1)', color: '#10b981' }}>Done: {filteredTasks.filter(t => t.status === 'done').length}</span>
             {overdueCount > 0 && (
               <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: isDark ? 'rgba(244,63,94,0.1)' : 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>Overdue: {overdueCount}</span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* View Switcher */}
           <div className="flex rounded-xl overflow-hidden" style={{ background: isDark ? 'rgba(26,26,37,0.6)' : 'rgba(255,255,255,0.6)', border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}` }}>
             {views.map(v => (
@@ -207,26 +190,28 @@ export default function TasksView() {
           </div>
           
           {/* Scope Switcher */}
-          <div className="flex items-center gap-2">
-            <select value={taskScope} onChange={e => {
-              setTaskScope(e.target.value as 'my_tasks' | 'team_tasks');
-              if (e.target.value === 'team_tasks' && selectedTeamId === 'all' && teams.length > 0) {
-                // Keep 'all' or select first team
-              }
-            }} className="input-field py-2 text-xs font-semibold" style={{ width: 'auto', background: isDark ? '#1e1b2e' : '#f8f7fa' }}>
-              <option value="my_tasks">👤 My Task</option>
-              <option value="team_tasks">👥 Select Team</option>
-            </select>
-            
-            {taskScope === 'team_tasks' && (
-              <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
-                <option value="all">All Teams</option>
-                {teams.map(team => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
-                ))}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <select value={taskScope} onChange={e => {
+                setTaskScope(e.target.value as 'my_tasks' | 'team_tasks');
+                if (e.target.value === 'team_tasks' && selectedTeamId === 'all' && teams.length > 0) {
+                  // Keep 'all' or select first team
+                }
+              }} className="input-field py-2 text-xs font-semibold" style={{ width: 'auto', background: isDark ? '#1e1b2e' : '#f8f7fa' }}>
+                <option value="my_tasks">👤 My Task</option>
+                <option value="team_tasks">👥 Select Team</option>
               </select>
-            )}
-          </div>
+              
+              {taskScope === 'team_tasks' && (
+                <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
+                  <option value="all">All Teams</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           {/* Filter */}
           <select value={filter} onChange={e => setFilter(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
@@ -278,14 +263,14 @@ export default function TasksView() {
 
       {/* Kanban Board */}
       {taskView === 'kanban' && (
-        <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 500 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 pb-4" style={{ minHeight: 500 }}>
           {(Object.keys(statusConfig) as Task['status'][]).map(status => {
             const config = statusConfig[status];
             const columnTasks = sortedFilteredTasks.filter(t => t.status === status);
             return (
               <div
                 key={status}
-                className="kanban-column flex-shrink-0"
+                className="kanban-column"
                 onDragOver={e => e.preventDefault()}
                 onDrop={() => handleDrop(status)}
               >

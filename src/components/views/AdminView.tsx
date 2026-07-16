@@ -1351,7 +1351,7 @@ export default function AdminView() {
     return (
       <div className="space-y-6">
         {/* Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           {statCards.map((stat, i) => (
             <motion.div key={stat.label}
               initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}

@@ -5,7 +5,7 @@ import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import * as dataService from '@/lib/dataService';
-import { DbAttendance } from '@/lib/supabase';
+import { DbAttendance, DbAttendanceLog } from '@/lib/supabase';
 
 function formatDuration(ms: number) {
   if (ms < 0) return '0h 0m';
@@ -23,6 +23,7 @@ export default function AttendanceView() {
   const mutedColor = isDark ? '#71717a' : '#6b6880';
   
   const [attendance, setAttendance] = useState<DbAttendance[]>([]);
+  const [breakLogs, setBreakLogs] = useState<DbAttendanceLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
   
@@ -41,8 +42,12 @@ export default function AttendanceView() {
   const fetchAttendanceData = async (date: string) => {
     setLoading(true);
     try {
-      const data = await dataService.fetchAttendance(date);
+      const [data, logs] = await Promise.all([
+        dataService.fetchAttendance(date),
+        dataService.fetchBreakLogs(date)
+      ]);
       setAttendance(data);
+      setBreakLogs(logs || []);
     } catch (err) {
       console.error('Error fetching attendance:', err);
     } finally {
@@ -62,8 +67,15 @@ export default function AttendanceView() {
     let checkInTime = record?.check_in ? new Date(record.check_in) : null;
     let checkOutTime = record?.check_out ? new Date(record.check_out) : null;
     
-    // In a full implementation, break time would come from attendance_logs. Mocking 0 for now.
+    // Calculate breakMs dynamically from attendance_logs
     let breakMs = 0; 
+    const memberLogs = breakLogs.filter(log => log.user_id === member.id);
+    memberLogs.forEach(log => {
+      const start = new Date(log.started_at);
+      const end = log.ended_at ? new Date(log.ended_at) : now;
+      breakMs += Math.max(0, end.getTime() - start.getTime());
+    });
+    
     let workingMs = 0;
 
     if (checkInTime) {
@@ -94,10 +106,10 @@ export default function AttendanceView() {
       breakMs, 
       isLate, 
       lateMinutes,
-      // Mocking HR Profile data for the UI
-      department: 'General', 
-      designation: member.role === 'admin' ? 'Manager' : 'Employee',
-      shift: 'Morning Shift'
+      // Using HR Profile data for the UI
+      department: member.department || 'General', 
+      designation: member.designation || (member.role === 'admin' ? 'Manager' : 'Employee'),
+      shift: member.shift || 'Morning Shift'
     };
   });
 
@@ -127,9 +139,9 @@ export default function AttendanceView() {
       } else if (action === 'check_out') {
         await dataService.checkOut(userId);
       } else if (action === 'break') {
-        await dataService.updateAttendanceStatus(userId, 'on_break');
+        await dataService.startBreak(userId);
       } else if (action === 'resume') {
-        await dataService.updateAttendanceStatus(userId, 'present');
+        await dataService.endBreak(userId);
       } else if (action === 'absent') {
         await dataService.updateAttendanceStatus(userId, 'absent');
       }
@@ -192,7 +204,7 @@ export default function AttendanceView() {
       </div>
 
       {/* Today's Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-3">
         {[
           { label: 'Total Team', value: totalEmployees, color: '#3b82f6' },
           { label: 'Present', value: presentCount, color: '#10b981' },
@@ -238,7 +250,7 @@ export default function AttendanceView() {
 
       {/* Advanced Employee Table */}
       <div className="glass-card overflow-hidden overflow-x-auto shadow-sm">
-        <div className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] gap-4 px-6 py-4 border-b text-xs font-semibold min-w-[1000px]" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0', background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
+        <div className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] gap-4 px-6 py-4 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0', background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
           <span>Employee Information</span>
           <span>Time Log</span>
           <span>Productivity</span>
@@ -260,7 +272,7 @@ export default function AttendanceView() {
                 <motion.div 
                   key={t.member.id} 
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                  className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] gap-4 px-6 py-4 items-center min-w-[1000px] hover:bg-black/5 dark:hover:bg-white/5 transition-colors relative"
+                  className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] gap-4 px-6 py-4 items-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors relative"
                 >
                   {/* Active Indicator Line */}
                   {t.checkInTime && !t.checkOutTime && t.status !== 'on_break' && (

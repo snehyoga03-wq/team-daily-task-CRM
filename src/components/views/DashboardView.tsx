@@ -51,7 +51,7 @@ export default function DashboardView() {
       </motion.div>
 
       {/* Stats Grid */}
-      <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {stats.map((s, i) => (
           <motion.div key={i} whileHover={{ y: -3, scale: 1.02 }} className="stat-card">
             <div className="flex items-center justify-between mb-2">

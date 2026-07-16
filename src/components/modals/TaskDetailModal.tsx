@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as dataService from '@/lib/dataService';
 import { sendWhatsAppReminder } from '@/lib/whatsapp';
 import { DbUser } from '@/lib/supabase';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addDays } from 'date-fns';
 
 export default function TaskDetailModal() {
   const {
@@ -155,22 +155,46 @@ export default function TaskDetailModal() {
       };
 
       if (isNew) {
-        const created = await dataService.createTask(updates);
-        const createdSubtasks = [];
-        for (let i = 0; i < subtasks.length; i++) {
-          const newSub = await dataService.createSubtask({
-            task_id: created.id,
-            title: subtasks[i].title,
-            is_completed: subtasks[i].is_completed,
-            order_index: i,
-          });
-          createdSubtasks.push(newSub);
+        let tasksToCreate = [updates];
+        
+        if (updates.is_recurring && updates.recurrence_pattern) {
+          tasksToCreate = [];
+          const pattern = updates.recurrence_pattern;
+          // Number of bulk tasks to generate
+          const count = pattern === 'daily' ? 30 : pattern === 'weekly' ? 4 : pattern === 'monthly' ? 12 : 1;
+          const baseDate = selectedDate || new Date();
+          
+          for (let i = 0; i < count; i++) {
+             let nextDate = new Date(baseDate);
+             if (pattern === 'daily') nextDate = addDays(nextDate, i);
+             else if (pattern === 'weekly') nextDate = addDays(nextDate, i * 7);
+             else if (pattern === 'monthly') nextDate = addMonths(nextDate, i);
+             
+             tasksToCreate.push({
+               ...updates,
+               due_date: format(nextDate, 'yyyy-MM-dd')
+             });
+          }
         }
-        addTask({
-          ...created,
-          subtasks: createdSubtasks,
-          assignee: teamMembers.find(m => m.id === assigneeId) || null,
-        });
+
+        for (const taskPayload of tasksToCreate) {
+          const created = await dataService.createTask(taskPayload);
+          const createdSubtasks = [];
+          for (let i = 0; i < subtasks.length; i++) {
+            const newSub = await dataService.createSubtask({
+              task_id: created.id,
+              title: subtasks[i].title,
+              is_completed: subtasks[i].is_completed,
+              order_index: i,
+            });
+            createdSubtasks.push(newSub);
+          }
+          addTask({
+            ...created,
+            subtasks: createdSubtasks,
+            assignee: teamMembers.find(m => m.id === assigneeId) || null,
+          });
+        }
       } else {
         const updated = await dataService.updateTask(task!.id, updates);
         // Update global store
