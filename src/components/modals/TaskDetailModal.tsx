@@ -146,7 +146,7 @@ export default function TaskDetailModal() {
         priority,
         assignee_id: assigneeId,
         tags,
-        due_date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
+        due_date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : (isNew ? format(new Date(), 'yyyy-MM-dd') : null),
         start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
         depends_on: dependsOn,
         due_time: selectedTime !== 'none' ? selectedTime : null,

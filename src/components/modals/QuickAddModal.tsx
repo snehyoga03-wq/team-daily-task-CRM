@@ -32,6 +32,7 @@ export default function QuickAddModal() {
           creator_id: currentUser.id,
           tags: [planType],
           order_index: 0,
+          due_date: new Date().toISOString().slice(0, 10),
         });
         addTask(task);
       } else if (type === 'lead') {
