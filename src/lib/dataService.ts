@@ -92,16 +92,23 @@ export async function createTask(task: Partial<DbTask>) {
     .select()
     .single();
 
-  // Fallback if migration hasn't been run (column depends_on or start_date doesn't exist)
-  if (error && error.code === 'PGRST204') {
-    console.warn('Database migration missing. Saving without start_date and depends_on.');
+  // Fallback if migration hasn't been run (missing columns)
+  if (error) {
+    console.warn('Database error on createTask:', error.message, 'Attempting fallback...');
     const fallbackTask = { ...task };
     delete fallbackTask.start_date;
     delete fallbackTask.depends_on;
+    delete fallbackTask.completed_at;
+    delete fallbackTask.due_time;
+    delete fallbackTask.reminder;
+    delete fallbackTask.duration_minutes;
+    delete fallbackTask.recurrence_day;
+    delete fallbackTask.source_task_id;
+    
     const res = await supabase.from('tasks').insert(fallbackTask).select().single();
     data = res.data;
     error = res.error;
-    if (!error) console.warn("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
+    if (!error) console.warn("Warning: Some features won't save correctly until you run the SQL migration in Supabase.");
   }
 
   if (error) throw error;
@@ -116,16 +123,23 @@ export async function updateTask(id: string, updates: Partial<DbTask>) {
     .select()
     .single();
 
-  // Fallback if migration hasn't been run
-  if (error && error.code === 'PGRST204') {
-    console.warn('Database migration missing. Saving without start_date and depends_on.');
+  // Fallback if migration hasn't been run (missing columns)
+  if (error) {
+    console.warn('Database error on updateTask:', error.message, 'Attempting fallback...');
     const fallbackUpdates = { ...updates };
     delete fallbackUpdates.start_date;
     delete fallbackUpdates.depends_on;
+    delete fallbackUpdates.completed_at;
+    delete fallbackUpdates.due_time;
+    delete fallbackUpdates.reminder;
+    delete fallbackUpdates.duration_minutes;
+    delete fallbackUpdates.recurrence_day;
+    delete fallbackUpdates.source_task_id;
+
     const res = await supabase.from('tasks').update(fallbackUpdates).eq('id', id).select().single();
     data = res.data;
     error = res.error;
-    if (!error) console.warn("Warning: Gantt features won't save correctly until you run the SQL migration in Supabase.");
+    if (!error) console.warn("Warning: Some features won't save correctly until you run the SQL migration in Supabase.");
   }
 
   if (error) throw error;
