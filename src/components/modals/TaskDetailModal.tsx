@@ -156,6 +156,8 @@ export default function TaskDetailModal() {
         recurrence_pattern: selectedRepeat !== 'none' ? selectedRepeat : null,
         recurrence_day: recurrenceDay,
         estimated_hours: durationMinutes > 0 ? durationMinutes / 60 : null,
+        completed_at: status === 'done' ? (task?.completed_at || new Date().toISOString()) : null,
+        updated_at: new Date().toISOString(),
       };
 
       if (isNew) {

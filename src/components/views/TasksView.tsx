@@ -100,7 +100,12 @@ function buildSections(
     // Also include tasks with NO due date that aren't done (or completed today)
     const noDueDateTasks = sortTasks(activeTasks.filter((t) => {
       if (t.due_date) return false;
-      if (t.status === 'done') return t.completed_at?.startsWith(todayStr);
+      if (t.status === 'done') {
+        const completionTime = t.completed_at || t.updated_at || t.created_at;
+        if (!completionTime) return true;
+        const msSinceCompletion = new Date().getTime() - new Date(completionTime).getTime();
+        return msSinceCompletion < 24 * 60 * 60 * 1000; // Show if completed within the last 24 hours
+      }
       return true;
     }));
 
@@ -217,7 +222,10 @@ function buildAllPendingSections(
 
   const pending = scopedTasks.filter((t) => {
     if (t.status === 'done') {
-      return t.completed_at?.startsWith(todayStr);
+      const completionTime = t.completed_at || t.updated_at || t.created_at;
+      if (!completionTime) return true;
+      const msSinceCompletion = new Date().getTime() - new Date(completionTime).getTime();
+      return msSinceCompletion < 24 * 60 * 60 * 1000;
     }
     return true;
   });
@@ -308,9 +316,17 @@ export default function TasksView() {
     if (draggedTask) {
       const taskId = draggedTask;
       setDraggedTask(null);
-      updateTask(taskId, { status });
+      
+      const updates: Partial<Task> = { status, updated_at: new Date().toISOString() };
+      if (status === 'done') {
+        updates.completed_at = new Date().toISOString();
+      } else {
+        updates.completed_at = null;
+      }
+      
+      updateTask(taskId, updates);
       try {
-        await dataService.updateTask(taskId, { status });
+        await dataService.updateTask(taskId, updates);
       } catch (err) {
         console.error('Failed to update task on drop', err);
       }
@@ -319,7 +335,7 @@ export default function TasksView() {
 
   const handleMarkComplete = async (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updates = { status: 'done' as const, completed_at: new Date().toISOString() };
+    const updates = { status: 'done' as const, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     updateTask(task.id, updates);
     try {
       await dataService.updateTask(task.id, updates);
