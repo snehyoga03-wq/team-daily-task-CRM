@@ -103,8 +103,9 @@ function buildSections(
       if (t.status === 'done') {
         const completionTime = t.completed_at || t.updated_at || t.created_at;
         if (!completionTime) return true;
-        const msSinceCompletion = new Date().getTime() - new Date(completionTime).getTime();
-        return msSinceCompletion < 24 * 60 * 60 * 1000; // Show if completed within the last 24 hours
+        const safeTime = completionTime.includes('T') ? completionTime : completionTime.replace(' ', 'T');
+        const msSinceCompletion = new Date().getTime() - new Date(safeTime).getTime();
+        return !isNaN(msSinceCompletion) && msSinceCompletion < 24 * 60 * 60 * 1000; // Show if completed within the last 24 hours
       }
       return true;
     }));
@@ -224,8 +225,9 @@ function buildAllPendingSections(
     if (t.status === 'done') {
       const completionTime = t.completed_at || t.updated_at || t.created_at;
       if (!completionTime) return true;
-      const msSinceCompletion = new Date().getTime() - new Date(completionTime).getTime();
-      return msSinceCompletion < 24 * 60 * 60 * 1000;
+      const safeTime = completionTime.includes('T') ? completionTime : completionTime.replace(' ', 'T');
+      const msSinceCompletion = new Date().getTime() - new Date(safeTime).getTime();
+      return !isNaN(msSinceCompletion) && msSinceCompletion < 24 * 60 * 60 * 1000;
     }
     return true;
   });
