@@ -62,10 +62,15 @@ function buildSections(
     }
   });
 
-  // Filter out done tasks completely (they only show in history/past dates)
-  const activeTasks = isPast
-    ? scopedTasks // For past dates, show all including done
-    : scopedTasks.filter((t) => t.status !== 'done');
+  const activeTasks = scopedTasks;
+
+  const sortTasks = (taskList: Task[]) => {
+    return [...taskList].sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return dateB - dateA;
+    });
+  };
 
   // ── TODAY ──────────────────────────────────────────────────────
   if (isToday) {
@@ -76,21 +81,28 @@ function buildSections(
       // If it's a daily task from a Sunday, don't carry it forward
       if (t.recurrence_pattern === 'daily' && isSunday(t.due_date)) return false;
       return true;
-    }).sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+    }).sort((a, b) => {
+      const dateCmp = (a.due_date || '').localeCompare(b.due_date || '');
+      if (dateCmp !== 0) return dateCmp;
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
 
     // Tasks due today
     const todayTasks = activeTasks.filter((t) => t.due_date === todayStr);
 
     // If today is Sunday, hide daily tasks
-    const section2 = todayTasks.filter((t) => !t.is_recurring && t.recurrence_pattern !== 'daily');
-    const section3 = isSundaySelected ? [] : todayTasks.filter((t) => t.recurrence_pattern === 'daily');
-    const section4 = todayTasks.filter((t) => t.recurrence_pattern === 'weekly');
-    const section5 = todayTasks.filter((t) => t.recurrence_pattern === 'monthly');
+    const section3 = sortTasks(isSundaySelected ? [] : todayTasks.filter((t) => t.recurrence_pattern === 'daily'));
+    const section4 = sortTasks(todayTasks.filter((t) => t.recurrence_pattern === 'weekly'));
+    const section5 = sortTasks(todayTasks.filter((t) => t.recurrence_pattern === 'monthly'));
     // One-time: not recurring
-    const oneTime = todayTasks.filter((t) => !t.is_recurring);
+    const oneTime = sortTasks(todayTasks.filter((t) => !t.is_recurring));
 
-    // Also include tasks with NO due date that aren't done
-    const noDueDateTasks = activeTasks.filter((t) => !t.due_date && t.status !== 'done');
+    // Also include tasks with NO due date that aren't done (or completed today)
+    const noDueDateTasks = sortTasks(activeTasks.filter((t) => {
+      if (t.due_date) return false;
+      if (t.status === 'done') return t.completed_at?.startsWith(todayStr);
+      return true;
+    }));
 
     const sections: TaskSection[] = [];
     if (carryForward.length > 0) {
@@ -158,7 +170,7 @@ function buildSections(
 
   // ── FUTURE DATE ───────────────────────────────────────────────
   if (isFuture) {
-    const futureTasks = activeTasks.filter((t) => t.due_date === selectedDate);
+    const futureTasks = sortTasks(activeTasks.filter((t) => t.due_date === selectedDate));
     if (futureTasks.length === 0) return [];
     return [{
       key: 'scheduled',
@@ -171,7 +183,7 @@ function buildSections(
 
   // ── PAST DATE (HISTORY) ───────────────────────────────────────
   if (isPast) {
-    const pastTasks = scopedTasks.filter((t) => t.due_date === selectedDate);
+    const pastTasks = sortTasks(scopedTasks.filter((t) => t.due_date === selectedDate));
     if (pastTasks.length === 0) return [];
     return [{
       key: 'history',
@@ -203,21 +215,36 @@ function buildAllPendingSections(
     return true;
   });
 
-  const pending = scopedTasks.filter((t) => t.status !== 'done');
+  const pending = scopedTasks.filter((t) => {
+    if (t.status === 'done') {
+      return t.completed_at?.startsWith(todayStr);
+    }
+    return true;
+  });
 
   // Carry-forward
-  const carryForward = pending.filter((t) => t.due_date && t.due_date < todayStr)
-    .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+  const carryForward = pending.filter((t) => t.due_date && t.due_date < todayStr && t.status !== 'done')
+    .sort((a, b) => {
+      const dateCmp = (a.due_date || '').localeCompare(b.due_date || '');
+      if (dateCmp !== 0) return dateCmp;
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
 
   // Today
-  const todayTasks = pending.filter((t) => t.due_date === todayStr);
+  const todayTasks = pending.filter((t) => t.due_date === todayStr)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   // Future
   const futureTasks = pending.filter((t) => t.due_date && t.due_date > todayStr)
-    .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+    .sort((a, b) => {
+      const dateCmp = (a.due_date || '').localeCompare(b.due_date || '');
+      if (dateCmp !== 0) return dateCmp;
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
 
   // No date
-  const noDate = pending.filter((t) => !t.due_date);
+  const noDate = pending.filter((t) => !t.due_date)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   const sections: TaskSection[] = [];
   if (carryForward.length > 0) {
