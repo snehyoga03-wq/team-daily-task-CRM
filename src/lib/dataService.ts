@@ -734,3 +734,36 @@ export async function fetchAllAttendanceData() {
   if (error) throw error;
   return data;
 }
+
+export async function fetchUserAttendanceHistory(userId: string) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*, user:users(*)')
+    .eq('user_id', userId)
+    .order('date', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateAttendanceRecord(id: string, updates: Partial<DbAttendance>) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .update(updates)
+    .eq('id', id)
+    .select('*, user:users(*)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function createAttendanceRecord(record: Partial<DbAttendance>) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .upsert(record, { onConflict: 'user_id,date' })
+    .select('*, user:users(*)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+
