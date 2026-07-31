@@ -458,6 +458,25 @@ export async function createNotification(notification: Partial<DbNotification>) 
 
 // ─── ATTENDANCE ────────────────────────────────────────────────────
 
+export function getTodayDateString(d: Date = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export async function fetchUserTodayAttendance(userId: string) {
+  const today = getTodayDateString();
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .maybeSingle();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data as DbAttendance | null;
+}
+
 export async function fetchAttendance(date?: string) {
   let query = supabase.from('attendance').select('*');
   if (date) {
@@ -470,7 +489,7 @@ export async function fetchAttendance(date?: string) {
 
 export async function checkIn(userId: string) {
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const today = getTodayDateString(now);
   
   // Office start time is 10:00 AM local time
   const officeStartTime = new Date(now);

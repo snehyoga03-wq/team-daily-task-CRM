@@ -12,6 +12,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import RightPanel from '@/components/layout/RightPanel';
 import QuickAddModal from '@/components/modals/QuickAddModal';
+import AttendanceCheckInModal from '@/components/modals/AttendanceCheckInModal';
 import DashboardView from '@/components/views/DashboardView';
 import TasksView from '@/components/views/TasksView';
 import CRMView from '@/components/views/CRMView';
@@ -251,6 +252,7 @@ export default function Home() {
 
       {/* Modals */}
       <QuickAddModal />
+      <AttendanceCheckInModal />
       <FloatingAIAssistant />
     </div>
   );
