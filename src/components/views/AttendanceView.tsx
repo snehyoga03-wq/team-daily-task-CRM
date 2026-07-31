@@ -16,7 +16,7 @@ function formatDuration(ms: number) {
 }
 
 export default function AttendanceView() {
-  const { theme, teamMembers } = useAppStore();
+  const { theme, teamMembers, tasks } = useAppStore();
   const { currentUser } = useAuthStore();
   const isDark = theme === 'dark';
   const textColor = isDark ? '#e4e4e7' : '#1e1b2e';
@@ -96,6 +96,11 @@ export default function AttendanceView() {
     
     if (!record) status = 'absent';
 
+    const userTasks = tasks.filter(t => t.assignee_id === member.id);
+    const totalTasks = userTasks.length;
+    const completedTasks = userTasks.filter(t => t.status === 'done').length;
+    const pendingTasks = totalTasks - completedTasks;
+
     return { 
       member, 
       record, 
@@ -106,6 +111,9 @@ export default function AttendanceView() {
       breakMs, 
       isLate, 
       lateMinutes,
+      totalTasks,
+      completedTasks,
+      pendingTasks,
       // Using HR Profile data for the UI
       department: member.department || 'General', 
       designation: member.designation || (member.role === 'admin' ? 'Manager' : 'Employee'),
@@ -333,6 +341,12 @@ export default function AttendanceView() {
                       <span style={{ color: mutedColor }}>Break:</span>
                       <span className="font-mono font-medium" style={{ color: textColor }}>
                         {t.breakMs > 0 ? formatDuration(t.breakMs) : '0h 0m'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center max-w-[140px] pt-1 border-t border-black/5 dark:border-white/5 text-[10px]">
+                      <span style={{ color: mutedColor }}>Tasks:</span>
+                      <span className="font-semibold text-blue-500" title={`Completed: ${t.completedTasks}, Pending: ${t.pendingTasks}, Total: ${t.totalTasks}`}>
+                        ✅ {t.completedTasks}/{t.totalTasks} ({t.pendingTasks} pnd)
                       </span>
                     </div>
                   </div>

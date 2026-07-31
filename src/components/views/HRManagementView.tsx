@@ -508,7 +508,7 @@ export default function HRManagementView() {
           ) : (
             <>
               {/* Detailed KPI Analysis Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-3">
                 {[
                   { label: 'Present Days', value: empMonthData.stats.presentCount, icon: '🟢', color: 'emerald' },
                   { label: 'Absent Days', value: empMonthData.stats.absentCount, icon: '🔴', color: 'rose' },
@@ -518,6 +518,9 @@ export default function HRManagementView() {
                   { label: 'Total Hours', value: empMonthData.stats.totalHoursFormatted, icon: '⏱️', color: 'cyan', sub: `Avg: ${empMonthData.stats.avgDailyHours}` },
                   { label: 'Attendance %', value: `${empMonthData.stats.attendanceRate}%`, icon: '📈', color: 'blue' },
                   { label: 'Punctuality', value: `${empMonthData.stats.punctualityScore}%`, icon: '🎯', color: 'indigo' },
+                  { label: 'Total Tasks', value: empTasks.length, icon: '📋', color: 'blue' },
+                  { label: 'Completed', value: empCompletedTasks, icon: '✅', color: 'emerald' },
+                  { label: 'Pending', value: empTasks.length - empCompletedTasks, icon: '⏳', color: 'amber' },
                 ].map((stat, i) => (
                   <motion.div key={i} whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm flex flex-col justify-between">
                     <div>
@@ -891,6 +894,11 @@ export default function HRManagementView() {
                         {teamMembers.slice(0, 4).map(member => {
                           const todayRecord = todaysAttendance.find(a => a.user_id === member.id);
                           const status = todayRecord?.status || 'absent';
+                          const memberTasks = tasks.filter(t => t.assignee_id === member.id);
+                          const totalT = memberTasks.length;
+                          const doneT = memberTasks.filter(t => t.status === 'done').length;
+                          const pendingT = totalT - doneT;
+
                           return (
                             <div 
                               key={member.id}
@@ -909,7 +917,10 @@ export default function HRManagementView() {
                                   <p className="text-[10px]" style={{ color: mutedColor }}>{member.role || member.department || 'Employee'}</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap justify-end">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-500" title="Tasks: Completed / Total (Pending)">
+                                  ✅ {doneT}/{totalT} ({pendingT} pending)
+                                </span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                                   status === 'present' || status === 'checked_out' ? 'bg-emerald-500/10 text-emerald-500' :
                                   status === 'late' ? 'bg-amber-500/10 text-amber-500' :
@@ -1071,7 +1082,7 @@ export default function HRManagementView() {
                             </div>
 
                             {/* Month Attendance Quick Stats */}
-                            <div className="grid grid-cols-4 gap-1 p-2 rounded-xl bg-black/5 dark:bg-white/5 text-center text-[10px] mb-4">
+                            <div className="grid grid-cols-4 gap-1 p-2 rounded-xl bg-black/5 dark:bg-white/5 text-center text-[10px] mb-2">
                               <div>
                                 <p style={{ color: mutedColor }}>Present</p>
                                 <p className="font-bold text-emerald-500">{presentCount}</p>
@@ -1089,6 +1100,31 @@ export default function HRManagementView() {
                                 <p className="font-bold text-rose-500">{absentCount}</p>
                               </div>
                             </div>
+
+                            {/* Task Breakdown Stats */}
+                            {(() => {
+                              const empMemberTasks = tasks.filter(t => t.assignee_id === member.id);
+                              const empTotalTasks = empMemberTasks.length;
+                              const empCompletedTasks = empMemberTasks.filter(t => t.status === 'done').length;
+                              const empPendingTasks = empTotalTasks - empCompletedTasks;
+
+                              return (
+                                <div className="grid grid-cols-3 gap-1 p-2.5 rounded-xl bg-blue-500/5 dark:bg-blue-500/10 border border-blue-500/20 text-center text-[10px] mb-4">
+                                  <div>
+                                    <p className="font-semibold text-blue-600 dark:text-blue-400">Total Tasks</p>
+                                    <p className="font-extrabold text-sm text-blue-600 dark:text-blue-400">{empTotalTasks}</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-emerald-600 dark:text-emerald-400">Completed</p>
+                                    <p className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">{empCompletedTasks}</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-amber-600 dark:text-amber-400">Pending</p>
+                                    <p className="font-extrabold text-sm text-amber-600 dark:text-amber-400">{empPendingTasks}</p>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           {/* Actions Row */}
