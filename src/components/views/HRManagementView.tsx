@@ -42,14 +42,55 @@ export default function HRManagementView() {
   const borderColor = isDark ? '#2a2a3a' : '#e5e2f0';
   const cardBg = isDark ? 'rgba(24, 24, 35, 0.7)' : 'rgba(255, 255, 255, 0.8)';
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'history' | 'leave' | 'holidays' | 'policy'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'history' | 'leave' | 'company_wfh' | 'reports' | 'policy' | 'audit' | 'holidays'>('dashboard');
   const [loading, setLoading] = useState(true);
 
   // Data state
   const [allAttendance, setAllAttendance] = useState<any[]>([]);
   const [holidays, setHolidays] = useState<any[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
-  const [latePolicy, setLatePolicy] = useState<any>(null);
+  const [latePolicy, setLatePolicy] = useState<any>(dataService.DEFAULT_HR_POLICY);
+  const [companyWfhList, setCompanyWfhList] = useState<any[]>([]);
+  const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
+
+  // Modals & Forms State
+  const [companyWfhModalOpen, setCompanyWfhModalOpen] = useState(false);
+  const [wfhDate, setWfhDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [wfhReason, setWfhReason] = useState('Heavy Traffic');
+  const [wfhTargetType, setWfhTargetType] = useState<'all' | 'department' | 'selected_users'>('all');
+  const [savingWfh, setSavingWfh] = useState(false);
+
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveUserId, setLeaveUserId] = useState('');
+  const [leaveType, setLeaveType] = useState<string>('casual');
+  const [leaveCategory, setLeaveCategory] = useState<'planned' | 'short_notice' | 'emergency'>('planned');
+  const [leaveStartDate, setLeaveStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [leaveEndDate, setLeaveEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [shortNoticeReason, setShortNoticeReason] = useState('Personal Work');
+  const [emergencyReason, setEmergencyReason] = useState('Medical Emergency');
+  const [plannedWork, setPlannedWork] = useState('');
+  const [examUrl, setExamUrl] = useState('');
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [submittingLeave, setSubmittingLeave] = useState(false);
+
+  // Employee Edit Profile Modal State
+  const [empModalOpen, setEmpModalOpen] = useState(false);
+  const [empEditUser, setEmpEditUser] = useState<any>(null);
+  const [empPhone, setEmpPhone] = useState('');
+  const [empAddress, setEmpAddress] = useState('');
+  const [empEmergencyContact, setEmpEmergencyContact] = useState('');
+  const [empDob, setEmpDob] = useState('');
+  const [empJoiningDate, setEmpJoiningDate] = useState('');
+  const [empEmploymentType, setEmpEmploymentType] = useState<'full_time' | 'intern'>('full_time');
+  const [empReportingManagerId, setEmpReportingManagerId] = useState('');
+  const [empDesignation, setEmpDesignation] = useState('');
+  const [empDepartment, setEmpDepartment] = useState('');
+  const [savingEmpProfile, setSavingEmpProfile] = useState(false);
+
+  // Policy Form State
+  const [policyForm, setPolicyForm] = useState<any>(dataService.DEFAULT_HR_POLICY);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   // Employee Detail view state
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
@@ -77,20 +118,26 @@ export default function HRManagementView() {
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+
   useEffect(() => {
     async function loadHRData() {
       setLoading(true);
       try {
-        const [attendanceData, holidaysData, leaveData, policyData] = await Promise.all([
+        const [attendanceData, holidaysData, leaveData, policyData, companyWfhData, auditLogsData] = await Promise.all([
           dataService.fetchAllAttendanceData(),
           dataService.fetchHolidays(),
           dataService.fetchLeaveRequests(),
-          dataService.fetchLatePolicySettings(),
+          dataService.fetchHrPolicySettings(),
+          dataService.fetchCompanyWfhDeclarations(),
+          dataService.fetchHrmsAuditLogs(),
         ]);
         setAllAttendance(attendanceData || []);
         setHolidays(holidaysData || []);
         setLeaveRequests(leaveData || []);
-        setLatePolicy(policyData);
+        setLatePolicy(policyData || dataService.DEFAULT_HR_POLICY);
+        setPolicyForm(policyData || dataService.DEFAULT_HR_POLICY);
+        setCompanyWfhList(companyWfhData || []);
+        setAuditLogsList(auditLogsData || []);
       } catch (err) {
         console.error('Error loading HR data', err);
       } finally {
@@ -99,6 +146,7 @@ export default function HRManagementView() {
     }
     loadHRData();
   }, []);
+
 
   // Fetch individual employee history when selectedEmployeeId changes
   useEffect(() => {
@@ -398,12 +446,16 @@ export default function HRManagementView() {
         <div className="flex gap-2 border-b overflow-x-auto pb-1" style={{ borderColor }}>
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
-            { id: 'employees', label: '👥 Employees' },
-            { id: 'history', label: '📅 Full History' },
-            { id: 'leave', label: '🏖️ Leave Management' },
+            { id: 'employees', label: '👥 Employee Profiles' },
+            { id: 'leave', label: '🏖️ Leave & WFH (2-Tier)' },
+            { id: 'company_wfh', label: '🏢 Company WFH' },
+            { id: 'reports', label: '📈 Reports & Exports' },
+            { id: 'policy', label: '⚙️ Policy Settings' },
+            { id: 'audit', label: '📋 Audit Logs' },
             { id: 'holidays', label: '🎉 Holidays' },
-            { id: 'policy', label: '⏱️ Late Policy' },
+            { id: 'history', label: '📅 Attendance Logs' },
           ].map(tab => (
+
             <button
               key={tab.id}
               onClick={() => {
@@ -792,76 +844,157 @@ export default function HRManagementView() {
             {/* 📊 DASHBOARD TAB */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
-                {/* Interactive KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {/* Interactive KPI Cards (Requirement #13) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {/* Clickable Total Employees Card */}
                   <motion.div 
                     whileHover={{ y: -3, scale: 1.02 }} 
                     onClick={() => setActiveTab('employees')}
-                    className="glass-card p-5 relative overflow-hidden shadow-sm cursor-pointer border-2 border-blue-500/30 hover:border-blue-500 transition-all group"
+                    className="glass-card p-4 relative overflow-hidden shadow-sm cursor-pointer border-2 border-blue-500/30 hover:border-blue-500 transition-all group"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Total Employees</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Total Employees</p>
                         <h3 className="text-2xl font-bold text-blue-500">{teamMembers.length}</h3>
                       </div>
                       <span className="text-2xl group-hover:scale-110 transition-transform">👥</span>
                     </div>
-                    <p className="text-[10px] text-blue-500 font-semibold mt-2 flex items-center gap-1">
-                      Click to view directory & dashboards →
-                    </p>
                   </motion.div>
 
-                  <motion.div whileHover={{ y: -2 }} className="glass-card p-5 relative overflow-hidden shadow-sm">
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Present Today</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Present Today</p>
                         <h3 className="text-2xl font-bold text-emerald-500">{presentToday}</h3>
                       </div>
                       <span className="text-2xl">🟢</span>
                     </div>
                   </motion.div>
 
-                  <motion.div whileHover={{ y: -2 }} className="glass-card p-5 relative overflow-hidden shadow-sm">
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Absent Today</p>
-                        <h3 className="text-2xl font-bold text-rose-500">{absentToday}</h3>
-                      </div>
-                      <span className="text-2xl">🔴</span>
-                    </div>
-                  </motion.div>
-
-                  <motion.div whileHover={{ y: -2 }} className="glass-card p-5 relative overflow-hidden shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Late Today</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Late Today</p>
                         <h3 className="text-2xl font-bold text-amber-500">{lateToday}</h3>
                       </div>
                       <span className="text-2xl">🟠</span>
                     </div>
                   </motion.div>
 
-                  <motion.div whileHover={{ y: -2 }} className="glass-card p-5 relative overflow-hidden shadow-sm">
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Half Day Today</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Half Day Today</p>
                         <h3 className="text-2xl font-bold text-yellow-500">{halfDayToday}</h3>
                       </div>
                       <span className="text-2xl">🟡</span>
                     </div>
                   </motion.div>
 
-                  <motion.div whileHover={{ y: -2 }} className="glass-card p-5 relative overflow-hidden shadow-sm">
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>On Leave Today</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Employee WFH</p>
+                        <h3 className="text-2xl font-bold text-cyan-500">
+                          {todaysAttendance.filter(a => a.status === 'wfh').length}
+                        </h3>
+                      </div>
+                      <span className="text-2xl">🏠</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Company WFH</p>
+                        <h3 className="text-2xl font-bold text-indigo-500">
+                          {todaysAttendance.filter(a => a.status === 'company_wfh').length}
+                        </h3>
+                      </div>
+                      <span className="text-2xl">🏢</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>On Leave Today</p>
                         <h3 className="text-2xl font-bold text-purple-500">{leaveToday}</h3>
                       </div>
                       <span className="text-2xl">🏖️</span>
                     </div>
                   </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Absent Today</p>
+                        <h3 className="text-2xl font-bold text-rose-500">{absentToday}</h3>
+                      </div>
+                      <span className="text-2xl">🔴</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} onClick={() => setActiveTab('leave')} className="glass-card p-4 relative overflow-hidden shadow-sm cursor-pointer hover:border-purple-500/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Pending Leaves</p>
+                        <h3 className="text-2xl font-bold text-purple-600">
+                          {leaveRequests.filter(r => r.status === 'pending' && r.leave_type !== 'wfh').length}
+                        </h3>
+                      </div>
+                      <span className="text-2xl">⏳</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} onClick={() => setActiveTab('leave')} className="glass-card p-4 relative overflow-hidden shadow-sm cursor-pointer hover:border-cyan-500/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Pending WFH</p>
+                        <h3 className="text-2xl font-bold text-cyan-600">
+                          {leaveRequests.filter(r => r.status === 'pending' && r.leave_type === 'wfh').length}
+                        </h3>
+                      </div>
+                      <span className="text-2xl">📩</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>In Office Now</p>
+                        <h3 className="text-2xl font-bold text-emerald-600">
+                          {todaysAttendance.filter(a => a.check_in && !a.check_out && a.status !== 'on_break').length}
+                        </h3>
+                      </div>
+                      <span className="text-2xl">📍</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -2 }} className="glass-card p-4 relative overflow-hidden shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: mutedColor }}>Avg Hours Today</p>
+                        <h3 className="text-2xl font-bold text-blue-600">
+                          {(() => {
+                            let total = 0;
+                            let count = 0;
+                            todaysAttendance.forEach(a => {
+                              if (a.check_in) {
+                                const end = a.check_out ? new Date(a.check_out).getTime() : Date.now();
+                                total += Math.max(0, end - new Date(a.check_in).getTime());
+                                count++;
+                              }
+                            });
+                            return formatDuration(count > 0 ? total / count : 0);
+                          })()}
+                        </h3>
+                      </div>
+                      <span className="text-2xl">⏱️</span>
+                    </div>
+                  </motion.div>
                 </div>
+
 
                 {/* Charts & Quick Access */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

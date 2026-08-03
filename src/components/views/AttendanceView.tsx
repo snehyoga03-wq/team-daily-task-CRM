@@ -188,10 +188,14 @@ export default function AttendanceView() {
     switch (status) {
       case 'present': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">🟢 Present</span>;
       case 'late': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">🟠 Late</span>;
-      case 'on_break': return <span className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: '#fef3c7', color: '#d97706' }}>🟡 On Break</span>;
+      case 'on_break': return <span className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: '#fef3c7', color: '#d97706' }}>🟡 On Break (Max 45m)</span>;
       case 'checked_out': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">🔴 Checked Out</span>;
       case 'absent': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-gray-500/10 text-gray-500">⚫ Absent</span>;
       case 'half_day': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400">🟣 Half Day</span>;
+      case 'wfh': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">🏠 WFH</span>;
+      case 'company_wfh': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">🏢 Company WFH</span>;
+      case 'weekly_off': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-blue-500/10 text-blue-500">💤 Weekly Off</span>;
+      case 'holiday': return <span className="px-2 py-1 rounded text-[10px] font-bold bg-pink-500/10 text-pink-500">🎉 Holiday</span>;
       default: return <span className="px-2 py-1 rounded text-[10px] font-bold">{status}</span>;
     }
   };

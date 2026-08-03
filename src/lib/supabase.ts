@@ -176,3 +176,86 @@ export interface DbTeam {
   color: string;
   created_at: string;
 }
+
+export interface DbEmployeeProfile {
+  user_id: string;
+  address?: string | null;
+  emergency_contact?: string | null;
+  dob?: string | null;
+  joining_date?: string | null;
+  employment_type?: 'full_time' | 'intern';
+  reporting_manager_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DbHrPolicySettings {
+  id: string;
+  weekday_start: string;
+  weekday_end: string;
+  saturday_start: string;
+  saturday_end: string;
+  grace_period_time: string;
+  late_mark_time: string;
+  half_day_report_cutoff: string;
+  late_minute_deduction_rate: number;
+  allowed_lates_before_halfday: number;
+  allowed_lates_before_fullday: number;
+  max_lunch_duration_minutes: number;
+  max_lunch_breaks_per_day: number;
+  overtime_threshold_minutes: number;
+  max_employee_wfh_per_month: number;
+  monthly_leave_credit: number;
+  max_leave_balance_cap: number;
+  intern_exam_leave_bonus: number;
+  updated_at?: string;
+}
+
+export interface DbCompanyWfh {
+  id: string;
+  date: string;
+  reason: string;
+  target_type: 'all' | 'department' | 'selected_users';
+  target_department?: string | null;
+  affected_user_ids?: string[] | null;
+  created_by?: string | null;
+  created_at?: string;
+}
+
+export interface DbLeaveRequest {
+  id: string;
+  user_id: string;
+  leave_type: 'casual' | 'sick' | 'birthday' | 'marriage' | 'bereavement' | 'emergency' | 'lwp' | 'wfh' | 'exam' | 'half_day' | 'earned' | 'maternity' | 'paternity' | 'permission';
+  category?: 'planned' | 'short_notice' | 'emergency';
+  start_date: string;
+  end_date: string;
+  reason: string;
+  short_notice_reason?: string | null;
+  emergency_reason?: string | null;
+  planned_work?: string | null;
+  exam_timetable_url?: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'dept_head_approved';
+  dept_head_status?: 'pending' | 'approved' | 'rejected';
+  dept_head_approved_by?: string | null;
+  office_manager_status?: 'pending' | 'approved' | 'rejected';
+  office_manager_approved_by?: string | null;
+  approved_by?: string | null;
+  attachment_url?: string | null;
+  user?: DbUser;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbHrmsAuditLog {
+  id: string;
+  action: string;
+  performed_by: string | null;
+  target_user_id: string | null;
+  details?: string | null;
+  previous_value?: any;
+  updated_value?: any;
+  created_at: string;
+  performer?: DbUser;
+  target_user?: DbUser;
+}
+

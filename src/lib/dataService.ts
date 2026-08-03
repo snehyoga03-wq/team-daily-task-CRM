@@ -785,4 +785,8 @@ export async function createAttendanceRecord(record: Partial<DbAttendance>) {
   return data;
 }
 
+// Export HRMS V2 Services
+export * from './hrmsService';
+
+
 
