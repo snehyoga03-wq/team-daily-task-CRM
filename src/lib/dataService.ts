@@ -492,17 +492,29 @@ export async function checkIn(userId: string) {
   const now = new Date();
   const today = getTodayDateString(now);
   
-  // Fetch HR policy and monthly late count for user
-  const policy = await fetchHrPolicySettings();
-  const currentMonthPrefix = today.substring(0, 7);
-  const { data: monthLates } = await supabase
-    .from('attendance')
-    .select('id')
-    .eq('user_id', userId)
-    .gte('date', `${currentMonthPrefix}-01`)
-    .eq('status', 'late');
+  // Fetch HR policy and monthly late count for user with fallbacks
+  let policy = DEFAULT_HR_POLICY;
+  try {
+    policy = await fetchHrPolicySettings();
+  } catch (err) {
+    console.warn('[checkIn] Could not fetch HR policy, using default policy:', err);
+  }
 
-  const monthlyLateCount = monthLates?.length || 0;
+  let monthlyLateCount = 0;
+  try {
+    const currentMonthPrefix = today.substring(0, 7);
+    const { data: monthLates } = await supabase
+      .from('attendance')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('date', `${currentMonthPrefix}-01`)
+      .eq('status', 'late');
+
+    monthlyLateCount = monthLates?.length || 0;
+  } catch (err) {
+    console.warn('[checkIn] Could not fetch monthly lates:', err);
+  }
+
   const calc = calculateAttendanceStatus(now, monthlyLateCount, policy);
 
   const payload: Partial<DbAttendance> = {
@@ -515,33 +527,119 @@ export async function checkIn(userId: string) {
     notes: calc.note || null,
   };
 
-  const { data, error } = await supabase
+  let resData: DbAttendance | null = null;
+  let resError: any = null;
+
+  // 1. Attempt primary upsert with full payload
+  const primaryRes = await supabase
     .from('attendance')
     .upsert(payload, { onConflict: 'user_id,date' })
     .select()
     .single();
 
-  if (error) throw error;
+  resData = primaryRes.data as DbAttendance;
+  resError = primaryRes.error;
 
-  if (calc.fineAmount > 0 || calc.isLate) {
-    createNotification({
+  // Fallback A: If primary upsert failed (e.g. missing columns fine_amount, late_minutes, notes), try minimal payload
+  if (resError) {
+    console.warn('[checkIn] Primary upsert failed, trying minimal payload fallback:', resError.message);
+    const basicPayload = {
       user_id: userId,
-      title: calc.fineAmount > 0 ? '⚠️ Late Deduction Applied' : '🟠 Late Check-In Marked',
-      message: calc.note || `Checked in at ${now.toLocaleTimeString()}`,
-      type: 'attendance_alert',
-    });
+      date: today,
+      check_in: now.toISOString(),
+      status: calc.status as any,
+    };
+    
+    const fallbackRes = await supabase
+      .from('attendance')
+      .upsert(basicPayload, { onConflict: 'user_id,date' })
+      .select()
+      .single();
+
+    resData = fallbackRes.data as DbAttendance;
+    resError = fallbackRes.error;
   }
 
-  logHrmsAudit('Employee Check-In', userId, userId, `Checked in at ${now.toLocaleTimeString()}. Status: ${calc.status}`);
+  // Fallback B: If onConflict upsert failed (e.g. UNIQUE constraint missing), try query then update or insert
+  if (resError) {
+    console.warn('[checkIn] Upsert fallback failed, trying manual select then insert/update:', resError.message);
+    try {
+      const { data: existingRecord } = await supabase
+        .from('attendance')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .maybeSingle();
 
-  return data as DbAttendance;
+      if (existingRecord) {
+        const updateRes = await supabase
+          .from('attendance')
+          .update({
+            check_in: now.toISOString(),
+            status: calc.status as any,
+          })
+          .eq('id', existingRecord.id)
+          .select()
+          .single();
+        resData = updateRes.data as DbAttendance;
+        resError = updateRes.error;
+      } else {
+        const insertRes = await supabase
+          .from('attendance')
+          .insert({
+            user_id: userId,
+            date: today,
+            check_in: now.toISOString(),
+            status: calc.status as any,
+          })
+          .select()
+          .single();
+        resData = insertRes.data as DbAttendance;
+        resError = insertRes.error;
+      }
+    } catch (manualErr) {
+      resError = manualErr;
+    }
+  }
+
+  if (resError) {
+    console.error('[checkIn] All check-in attempts failed:', resError);
+    throw resError;
+  }
+
+  // Non-blocking notification & audit logging
+  try {
+    if (calc.fineAmount > 0 || calc.isLate) {
+      await createNotification({
+        user_id: userId,
+        title: calc.fineAmount > 0 ? '⚠️ Late Deduction Applied' : '🟠 Late Check-In Marked',
+        message: calc.note || `Checked in at ${now.toLocaleTimeString()}`,
+        type: 'attendance_alert',
+      });
+    }
+  } catch (notifErr) {
+    console.warn('[checkIn] Failed to send notification:', notifErr);
+  }
+
+  try {
+    await logHrmsAudit('Employee Check-In', userId, userId, `Checked in at ${now.toLocaleTimeString()}. Status: ${calc.status}`);
+  } catch (auditErr) {
+    console.warn('[checkIn] Failed to log HRMS audit:', auditErr);
+  }
+
+  return resData as DbAttendance;
 }
 
 export async function checkOut(userId: string) {
   const now = new Date();
   const today = getTodayDateString(now);
   
-  const policy = await fetchHrPolicySettings();
+  let policy = DEFAULT_HR_POLICY;
+  try {
+    policy = await fetchHrPolicySettings();
+  } catch (err) {
+    console.warn('[checkOut] Could not fetch HR policy:', err);
+  }
   const otHours = calculateOvertimeHours(now, policy);
 
   const updates: Partial<DbAttendance> = {
@@ -550,7 +648,7 @@ export async function checkOut(userId: string) {
     ot_hours: otHours,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('attendance')
     .update(updates)
     .eq('user_id', userId)
@@ -558,27 +656,52 @@ export async function checkOut(userId: string) {
     .select()
     .single();
 
+  if (error) {
+    console.warn('[checkOut] Primary update failed, trying minimal update fallback:', error.message);
+    const basicUpdates = {
+      check_out: now.toISOString(),
+      status: 'checked_out',
+    };
+    const res = await supabase
+      .from('attendance')
+      .update(basicUpdates)
+      .eq('user_id', userId)
+      .eq('date', today)
+      .select()
+      .single();
+    data = res.data;
+    error = res.error;
+  }
+
   if (error) throw error;
 
   // Create overtime request record if OT hours > 0
   if (otHours > 0) {
-    await supabase.from('overtime_requests').insert({
-      user_id: userId,
-      date: today,
-      hours: otHours,
-      reason: `Automated post-closing overtime (${otHours} hrs)`,
-      status: 'approved',
-    });
+    try {
+      await supabase.from('overtime_requests').insert({
+        user_id: userId,
+        date: today,
+        hours: otHours,
+        reason: `Automated post-closing overtime (${otHours} hrs)`,
+        status: 'approved',
+      });
 
-    createNotification({
-      user_id: userId,
-      title: '⏱️ Overtime Logged',
-      message: `You completed ${otHours} hours of overtime today!`,
-      type: 'overtime_alert',
-    });
+      await createNotification({
+        user_id: userId,
+        title: '⏱️ Overtime Logged',
+        message: `You completed ${otHours} hours of overtime today!`,
+        type: 'overtime_alert',
+      });
+    } catch (otErr) {
+      console.warn('[checkOut] Failed to record OT request or notification:', otErr);
+    }
   }
 
-  logHrmsAudit('Employee Check-Out', userId, userId, `Checked out at ${now.toLocaleTimeString()}. OT: ${otHours} hrs`);
+  try {
+    await logHrmsAudit('Employee Check-Out', userId, userId, `Checked out at ${now.toLocaleTimeString()}. OT: ${otHours} hrs`);
+  } catch (auditErr) {
+    console.warn('[checkOut] Failed to log HRMS audit:', auditErr);
+  }
 
   return data as DbAttendance;
 }

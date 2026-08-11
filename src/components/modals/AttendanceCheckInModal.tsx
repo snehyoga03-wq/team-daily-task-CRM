@@ -14,6 +14,7 @@ export default function AttendanceCheckInModal() {
   const [showModal, setShowModal] = useState(false);
   const [checking, setChecking] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   // Keep live time updated
@@ -66,12 +67,13 @@ export default function AttendanceCheckInModal() {
     if (!currentUser || submitting) return;
     try {
       setSubmitting(true);
+      setErrorMsg(null);
       const result = await dataService.checkIn(currentUser.id);
       console.log('[AttendanceCheckInModal] Check-in successful:', result);
       setShowModal(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[AttendanceCheckInModal] Check in failed:', err);
-      alert('Failed to check in. Please try again.');
+      setErrorMsg(err?.message || 'Failed to check in. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -113,6 +115,16 @@ export default function AttendanceCheckInModal() {
             boxShadow: '0 25px 50px -12px rgba(139, 92, 246, 0.3)',
           }}
         >
+          {/* Close / Cross (X) Button */}
+          <button
+            onClick={() => setShowModal(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer z-10 font-bold text-lg"
+            aria-label="Close"
+            title="Close check-in"
+          >
+            ✕
+          </button>
+
           {/* Header Icon */}
           <div className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center text-3xl shadow-lg bg-gradient-to-tr from-purple-600 to-indigo-500 text-white animate-pulse">
             ⏰
@@ -134,6 +146,12 @@ export default function AttendanceCheckInModal() {
               ! Please check in for today to continue.
             </p>
           </div>
+
+          {errorMsg && (
+            <div className="p-3 mb-4 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/20 text-center">
+              ⚠️ {errorMsg}
+            </div>
+          )}
 
           {/* Time & Date Display Box */}
           <div
