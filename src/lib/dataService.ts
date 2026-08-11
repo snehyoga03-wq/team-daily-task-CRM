@@ -1,5 +1,5 @@
 import { supabase, DbTask, DbSubtask, DbLead, DbCalendarEvent, DbChannel, DbMessage, DbNotification, DbUser, DbAttendance, DbTeam } from './supabase';
-import { fetchHrPolicySettings, calculateAttendanceStatus, calculateOvertimeHours, validateLunchBreakStart, logHrmsAudit } from './hrmsService';
+import { fetchHrPolicySettings, calculateAttendanceStatus, calculateOvertimeHours, validateLunchBreakStart, logHrmsAudit, DEFAULT_HR_POLICY } from './hrmsService';
 
 // ─── TASKS ─────────────────────────────────────────────────────────
 
