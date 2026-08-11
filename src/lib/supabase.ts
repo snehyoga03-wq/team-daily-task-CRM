@@ -33,6 +33,12 @@ export interface DbUser {
   department?: string | null;
   designation?: string | null;
   shift?: string | null;
+  address?: string | null;
+  emergency_contact?: string | null;
+  dob?: string | null;
+  joining_date?: string | null;
+  employment_type?: 'full_time' | 'intern' | null;
+  reporting_manager_id?: string | null;
   tag?: string | null;
   xp_points: number;
   level: number;
@@ -154,8 +160,12 @@ export interface DbAttendance {
   date: string;
   check_in: string | null;
   check_out: string | null;
-  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'on_break' | 'checked_out';
+  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'on_break' | 'checked_out' | 'wfh' | 'company_wfh' | 'weekly_off' | 'holiday';
+  fine_amount?: number;
+  late_minutes?: number;
+  ot_hours?: number;
   notes: string | null;
+  user?: DbUser;
   created_at: string;
 }
 

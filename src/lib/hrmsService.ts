@@ -113,7 +113,8 @@ export function calculateAttendanceStatus(
   const minutes = checkInDate.getMinutes();
   const timeInMins = hours * 60 + minutes;
 
-  // 9:30 AM = 570 mins, 9:45 AM = 585 mins, 10:00 AM = 600 mins, 12:00 PM = 720 mins
+  // Official Start: 9:30 AM (570 mins), Grace Cutoff: 9:45 AM (585 mins), Late Mark Cutoff: 10:00 AM (600 mins), Half Day Cutoff: 12:00 PM (720 mins)
+  const officialStartMins = 9 * 60 + 30; // 9:30 AM
   const graceMins = 9 * 60 + 45; // 9:45 AM
   const lateCutoffMins = 10 * 60; // 10:00 AM
   const halfDayReportCutoffMins = 12 * 60; // 12:00 PM
@@ -124,37 +125,33 @@ export function calculateAttendanceStatus(
   let fineAmount = 0;
   let note = '';
 
+  if (timeInMins > graceMins) {
+    isLate = true;
+    lateMinutes = Math.max(0, timeInMins - officialStartMins);
+    fineAmount = lateMinutes * (policy.late_minute_deduction_rate || 1.0);
+  }
+
   if (timeInMins <= graceMins) {
     status = 'present';
+    note = 'On-time check-in';
   } else if (timeInMins <= lateCutoffMins) {
-    isLate = true;
-    lateMinutes = timeInMins - (9 * 60 + 30); // minutes late after 9:30 AM
     status = 'late';
-    
-    // Evaluate Monthly Late Rules
     const currentLateIndex = monthlyLateCount + 1;
     if (currentLateIndex <= policy.allowed_lates_before_halfday) {
-      // 1st to 3rd late: ₹1 per late minute
-      fineAmount = lateMinutes * policy.late_minute_deduction_rate;
       note = `Late mark #${currentLateIndex} (${lateMinutes} mins) - ₹${fineAmount} fine`;
     } else if (currentLateIndex <= policy.allowed_lates_before_fullday) {
-      // 4th to 6th late: Half Day
       status = 'half_day';
-      note = `Late mark #${currentLateIndex} - Escalated to Half Day`;
+      note = `Late mark #${currentLateIndex} (${lateMinutes} mins) - Escalated to Half Day`;
     } else {
-      // 7th onwards: Full Day Leave / LWP
       status = 'absent';
-      note = `Late mark #${currentLateIndex} - Escalated to Full Day Leave / LWP`;
+      note = `Late mark #${currentLateIndex} (${lateMinutes} mins) - Escalated to Full Day Leave / LWP`;
     }
+  } else if (timeInMins <= halfDayReportCutoffMins) {
+    status = 'half_day';
+    note = `Checked in after 10:00 AM (${lateMinutes} mins late) - Marked Half Day (Fine ₹${fineAmount})`;
   } else {
-    // Checked in after 10:00 AM
-    if (timeInMins <= halfDayReportCutoffMins) {
-      status = 'half_day';
-      note = 'Checked in after 10:00 AM (Reported before 12:00 PM) - Marked Half Day';
-    } else {
-      status = 'absent';
-      note = 'Checked in after 12:00 PM cutoff - Marked Full Day Leave / Absent';
-    }
+    status = 'absent';
+    note = `Checked in after 12:00 PM cutoff (${lateMinutes} mins late) - Marked Full Day Leave / Absent`;
   }
 
   return { status, isLate, lateMinutes, fineAmount, note };
@@ -415,15 +412,19 @@ export function generateHrmsMonthlyReportCsv(type: 'attendance' | 'late_fines' |
     ]);
   } else if (type === 'late_fines') {
     headers = ['Employee Name', 'Date', 'Check In Time', 'Late Minutes', 'Deduction Amount (₹)', 'Late Count This Month', 'Escalation Status'];
-    rows = data.map(row => [
-      row.user?.full_name || 'N/A',
-      row.date,
-      row.check_in ? new Date(row.check_in).toLocaleTimeString() : '-',
-      String(row.late_minutes || 0),
-      `₹${row.fine_amount || 0}`,
-      String(row.late_count || 1),
-      row.escalation_note || 'Standard Deduction'
-    ]);
+    rows = data.map(row => {
+      const lateMins = row.late_minutes || 0;
+      const fineVal = row.fine_amount !== undefined && row.fine_amount !== null ? row.fine_amount : (lateMins * 1.0);
+      return [
+        row.user?.full_name || 'N/A',
+        row.date,
+        row.check_in ? new Date(row.check_in).toLocaleTimeString() : '-',
+        String(lateMins),
+        `₹${fineVal}`,
+        String(row.late_count || 1),
+        row.notes || (row.status === 'half_day' ? 'Half Day Escalation' : 'Standard Deduction')
+      ];
+    });
   } else if (type === 'leave') {
     headers = ['Employee Name', 'Leave Type', 'Category', 'Start Date', 'End Date', 'Days', 'Reason', 'Status'];
     rows = data.map(row => [
@@ -461,3 +462,38 @@ export function generateHrmsMonthlyReportCsv(type: 'attendance' | 'late_fines' |
   const csvContent = 'data:text/csv;charset=utf-8,' + headers.join(',') + '\n' + rows.map(e => e.map(val => `"${val}"`).join(',')).join('\n');
   return encodeURI(csvContent);
 }
+
+// ─── 9. LEAVE BALANCES & PROFILE HELPERS ──────────────────────────────
+
+export async function fetchLeaveBalances(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('leave_balances')
+      .select('*')
+      .eq('user_id', userId);
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Failed to fetch leave balances:', err);
+    return [];
+  }
+}
+
+export async function updateEmployeeProfile(userId: string, updates: Record<string, any>, adminUserId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    await logHrmsAudit('Profile Updated', adminUserId, userId, `Updated employee profile for ${data.full_name}`, null, updates);
+    return data;
+  } catch (err) {
+    console.error('Failed to update employee profile:', err);
+    throw err;
+  }
+}
+

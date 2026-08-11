@@ -121,7 +121,6 @@ export default function HRManagementView() {
 
   useEffect(() => {
     async function loadHRData() {
-      setLoading(true);
       try {
         const [attendanceData, holidaysData, leaveData, policyData, companyWfhData, auditLogsData] = await Promise.all([
           dataService.fetchAllAttendanceData(),
@@ -145,6 +144,12 @@ export default function HRManagementView() {
       }
     }
     loadHRData();
+    const interval = setInterval(loadHRData, 5000);
+    window.addEventListener('focus', loadHRData);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', loadHRData);
+    };
   }, []);
 
 
@@ -268,13 +273,199 @@ export default function HRManagementView() {
     }
   };
 
-  // Compute Dashboard Metrics
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Save Dynamic Policy Settings
+  const handleSavePolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingPolicy(true);
+    try {
+      const saved = await dataService.saveHrPolicySettings(policyForm.id || 'default', policyForm, currentUser?.id || '');
+      setLatePolicy(saved);
+      setPolicyForm(saved);
+      alert('HR Policy Settings saved successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to save policy settings');
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  // Open & Save Employee Profile Modal
+  const handleOpenEmpProfileModal = (member: any) => {
+    setEmpEditUser(member);
+    setEmpPhone(member.phone || '');
+    setEmpAddress(member.address || '');
+    setEmpEmergencyContact(member.emergency_contact || '');
+    setEmpDob(member.dob || '');
+    setEmpJoiningDate(member.joining_date || '');
+    setEmpEmploymentType(member.employment_type || 'full_time');
+    setEmpReportingManagerId(member.reporting_manager_id || '');
+    setEmpDepartment(member.department || '');
+    setEmpDesignation(member.designation || '');
+    setEmpModalOpen(true);
+  };
+
+  const handleSaveEmpProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!empEditUser) return;
+    setSavingEmpProfile(true);
+    try {
+      const updates = {
+        phone: empPhone,
+        address: empAddress,
+        emergency_contact: empEmergencyContact,
+        dob: empDob || null,
+        joining_date: empJoiningDate || null,
+        employment_type: empEmploymentType,
+        reporting_manager_id: empReportingManagerId || null,
+        department: empDepartment || null,
+        designation: empDesignation || null,
+      };
+      await dataService.updateEmployeeProfile(empEditUser.id, updates, currentUser?.id || '');
+      const members = await dataService.fetchTeamMembers();
+      useAppStore.getState().setTeamMembers(members);
+      setEmpModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save employee profile');
+    } finally {
+      setSavingEmpProfile(false);
+    }
+  };
+
+  // Leave Handlers & 2-Tier Approvals
+  const handleSubmitLeaveRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingLeave(true);
+    setLeaveError(null);
+    try {
+      const targetUser = leaveUserId || currentUser?.id;
+      await dataService.submitLeaveRequest({
+        user_id: targetUser,
+        leave_type: leaveType as any,
+        category: leaveCategory,
+        start_date: leaveStartDate,
+        end_date: leaveEndDate,
+        reason: leaveReason,
+        short_notice_reason: leaveCategory === 'short_notice' ? shortNoticeReason : null,
+        emergency_reason: leaveCategory === 'emergency' ? emergencyReason : null,
+        planned_work: leaveCategory === 'planned' ? plannedWork : null,
+        exam_timetable_url: leaveType === 'exam' ? examUrl : null,
+      });
+      const freshLeaves = await dataService.fetchLeaveRequests();
+      setLeaveRequests(freshLeaves || []);
+      setLeaveModalOpen(false);
+    } catch (err: any) {
+      setLeaveError(err.message || 'Failed to submit leave request');
+    } finally {
+      setSubmittingLeave(false);
+    }
+  };
+
+  const handleDeptHeadApprove = async (leaveId: string) => {
+    try {
+      await dataService.approveLeaveByDeptHead(leaveId, currentUser?.id || '');
+      const fresh = await dataService.fetchLeaveRequests();
+      setLeaveRequests(fresh || []);
+    } catch (err: any) {
+      alert(err.message || 'Approval failed');
+    }
+  };
+
+  const handleOfficeManagerApprove = async (leaveId: string) => {
+    try {
+      await dataService.approveLeaveByOfficeManager(leaveId, currentUser?.id || '');
+      const fresh = await dataService.fetchLeaveRequests();
+      setLeaveRequests(fresh || []);
+    } catch (err: any) {
+      alert(err.message || 'Approval failed');
+    }
+  };
+
+  const handleRejectLeave = async (leaveId: string) => {
+    try {
+      await dataService.rejectLeaveRequest(leaveId, currentUser?.id || '', 'Not approved by management');
+      const fresh = await dataService.fetchLeaveRequests();
+      setLeaveRequests(fresh || []);
+    } catch (err: any) {
+      alert(err.message || 'Rejection failed');
+    }
+  };
+
+  // Company WFH Declaration
+  const handleCreateCompanyWfh = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingWfh(true);
+    try {
+      await dataService.createCompanyWfhDeclaration({
+        date: wfhDate,
+        reason: wfhReason,
+        target_type: wfhTargetType,
+      }, currentUser?.id || '');
+
+      const affectedUsers = teamMembers.map(m => m.id);
+      for (const uid of affectedUsers) {
+        await dataService.createAttendanceRecord({
+          user_id: uid,
+          date: wfhDate,
+          status: 'company_wfh',
+          notes: `Company WFH: ${wfhReason}`
+        });
+      }
+      const freshWfh = await dataService.fetchCompanyWfhDeclarations();
+      const freshAtt = await dataService.fetchAllAttendanceData();
+      setCompanyWfhList(freshWfh || []);
+      setAllAttendance(freshAtt || []);
+      setCompanyWfhModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to declare Company WFH');
+    } finally {
+      setSavingWfh(false);
+    }
+  };
+
+  // Reports CSV Export Trigger
+  const handleDownloadReport = (type: 'attendance' | 'late_fines' | 'leave' | 'wfh' | 'overtime') => {
+    let exportData: any[] = [];
+    if (type === 'attendance') exportData = allAttendance;
+    else if (type === 'late_fines') exportData = allAttendance.filter(a => a.status === 'late' || a.status === 'half_day' || (a.late_minutes && a.late_minutes > 0) || (a.fine_amount && a.fine_amount > 0));
+    else if (type === 'leave') exportData = leaveRequests;
+    else if (type === 'wfh') exportData = allAttendance.filter(a => ['wfh', 'company_wfh'].includes(a.status));
+    else if (type === 'overtime') exportData = allAttendance.filter(a => a.ot_hours && a.ot_hours > 0);
+
+    const uri = dataService.generateHrmsMonthlyReportCsv(type, exportData);
+    const link = document.createElement('a');
+    link.setAttribute('href', uri);
+    link.setAttribute('download', `HRMS_${type.toUpperCase()}_Report_${todayStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Compute Dashboard Metrics using Local Date String to match AttendanceView exactly
+  const getLocalTodayStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = getLocalTodayStr();
   const todaysAttendance = allAttendance.filter(a => a.date === todayStr);
   
-  const presentToday = todaysAttendance.filter(a => ['present', 'late', 'on_break', 'checked_out'].includes(a.status)).length;
+  const presentToday = todaysAttendance.filter(a => ['present', 'late', 'on_break', 'checked_out', 'half_day', 'wfh', 'company_wfh'].includes(a.status) || a.check_in).length;
   const absentToday = Math.max(0, teamMembers.length - presentToday);
-  const lateToday = todaysAttendance.filter(a => a.status === 'late').length;
+  const lateToday = todaysAttendance.filter(a => {
+    if (a.status === 'late') return true;
+    if (a.late_minutes && a.late_minutes > 0) return true;
+    if (a.fine_amount && a.fine_amount > 0) return true;
+    if (a.check_in) {
+      const d = new Date(a.check_in);
+      const officeStart = new Date(d);
+      officeStart.setHours(9, 45, 0, 0);
+      if (d > officeStart) return true;
+    }
+    return false;
+  }).length;
   const halfDayToday = todaysAttendance.filter(a => a.status === 'half_day').length;
   const leaveToday = todaysAttendance.filter(a => a.status === 'leave').length;
 
@@ -520,15 +711,39 @@ export default function HRManagementView() {
                     <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/10 text-blue-500">
                       {selectedEmp?.role || 'Employee'}
                     </span>
+                    <button
+                      onClick={() => handleOpenEmpProfileModal(selectedEmp)}
+                      className="px-3 py-1 rounded-xl text-xs font-bold bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-all border border-blue-500/30"
+                    >
+                      ✏️ Edit Profile
+                    </button>
                   </div>
                   <p className="text-xs mt-1" style={{ color: mutedColor }}>
                     {selectedEmp?.department ? `${selectedEmp.department} Department • ` : ''}
                     📧 {selectedEmp?.email || 'No email registered'} {selectedEmp?.phone ? `• 📞 ${selectedEmp.phone}` : ''}
                   </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs p-3 rounded-xl bg-black/5 dark:bg-white/5 border" style={{ borderColor }}>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold block" style={{ color: mutedColor }}>Emergency Contact</span>
+                      <span className="font-semibold" style={{ color: textColor }}>{selectedEmp?.emergency_contact || 'Not set'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold block" style={{ color: mutedColor }}>Address</span>
+                      <span className="font-semibold truncate block" style={{ color: textColor }}>{selectedEmp?.address || 'Not set'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold block" style={{ color: mutedColor }}>Date of Birth</span>
+                      <span className="font-semibold" style={{ color: textColor }}>{selectedEmp?.dob || 'Not set'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold block" style={{ color: mutedColor }}>Employment Type</span>
+                      <span className="font-semibold capitalize text-purple-500">{selectedEmp?.employment_type?.replace('_', ' ') || 'Full Time'}</span>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: mutedColor }}>
                     <span>⭐ Level {selectedEmp?.level || 1} ({selectedEmp?.xp_points || 0} XP)</span>
                     <span>🔥 {selectedEmp?.streak_days || 0} Day Streak</span>
-                    <span>📅 Joined {selectedEmp?.created_at ? new Date(selectedEmp.created_at).toLocaleDateString() : 'N/A'}</span>
+                    <span>📅 Joined {selectedEmp?.joining_date || (selectedEmp?.created_at ? new Date(selectedEmp.created_at).toLocaleDateString() : 'N/A')}</span>
                   </div>
                 </div>
               </div>
@@ -1331,6 +1546,8 @@ export default function HRManagementView() {
                         <th className="p-4 font-semibold">Check In</th>
                         <th className="p-4 font-semibold">Check Out</th>
                         <th className="p-4 font-semibold">Working Hrs</th>
+                        <th className="p-4 font-semibold">Late Fine (₹)</th>
+                        <th className="p-4 font-semibold">OT (Hrs)</th>
                         <th className="p-4 font-semibold">Notes / Reason</th>
                         <th className="p-4 font-semibold">Action</th>
                       </tr>
@@ -1343,6 +1560,7 @@ export default function HRManagementView() {
                         const checkIn = record.check_in ? new Date(record.check_in) : null;
                         const checkOut = record.check_out ? new Date(record.check_out) : null;
                         const workingMs = checkIn && checkOut ? checkOut.getTime() - checkIn.getTime() : 0;
+                        const fineVal = record.fine_amount || (record.status === 'late' && record.late_minutes ? record.late_minutes * 1.0 : 0);
                         
                         return (
                           <tr key={record.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -1362,6 +1580,8 @@ export default function HRManagementView() {
                             <td className="p-4" style={{ color: textColor }}>{checkIn ? checkIn.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
                             <td className="p-4" style={{ color: textColor }}>{checkOut ? checkOut.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>
                             <td className="p-4 font-mono" style={{ color: textColor }}>{workingMs > 0 ? formatDuration(workingMs) : '-'}</td>
+                            <td className="p-4 font-bold text-rose-500">{fineVal > 0 ? `₹${fineVal}` : '-'}</td>
+                            <td className="p-4 font-bold text-emerald-500">{record.ot_hours && record.ot_hours > 0 ? `${record.ot_hours} hrs` : '-'}</td>
                             <td className="p-4 text-xs max-w-xs truncate" style={{ color: mutedColor }}>{record.notes || '-'}</td>
                             <td className="p-4 flex items-center gap-3">
                               <button 
@@ -1389,67 +1609,223 @@ export default function HRManagementView() {
               </div>
             )}
 
-            {/* 🏖️ LEAVE MANAGEMENT TAB */}
+            {/* 🏖️ LEAVE MANAGEMENT TAB (2-TIER WORKFLOW) */}
             {activeTab === 'leave' && (
-              <div className="glass-card p-6">
-                <h2 className="text-xl font-bold mb-4" style={{ color: textColor }}>Leave Applications</h2>
+              <div className="glass-card p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4" style={{ borderColor }}>
+                  <div>
+                    <h2 className="text-xl font-bold" style={{ color: textColor }}>🏖️ Leave & WFH Applications (2-Tier Hierarchy)</h2>
+                    <p className="text-xs mt-1" style={{ color: mutedColor }}>Level 1: Dept Head ➔ Level 2: Office Manager ➔ Founder Information Notice</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setLeaveUserId(currentUser?.id || '');
+                      setLeaveError(null);
+                      setLeaveModalOpen(true);
+                    }}
+                    className="btn-primary text-xs px-4 py-2.5 flex items-center gap-2 shadow-md"
+                  >
+                    <span>➕ Apply for Leave / WFH</span>
+                  </button>
+                </div>
+
                 <div className="space-y-4">
                   {leaveRequests.length === 0 ? (
-                    <div className="text-center py-8" style={{ color: mutedColor }}>No leave requests pending.</div>
+                    <div className="text-center py-12" style={{ color: mutedColor }}>No leave or WFH requests recorded.</div>
                   ) : (
                     leaveRequests.map(req => (
-                      <div key={req.id} className="p-4 rounded-xl border flex justify-between items-center" style={{ borderColor }}>
-                        <div>
-                          <p className="font-semibold text-sm" style={{ color: textColor }}>
-                            {req.user?.full_name} 
-                            <span className="text-xs bg-gray-500/20 px-2 py-0.5 rounded ml-2 capitalize">{req.leave_type} Leave</span>
+                      <div key={req.id} className="p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 glass-card" style={{ borderColor }}>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-sm" style={{ color: textColor }}>{req.user?.full_name || 'Employee'}</span>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-purple-500/10 text-purple-500">
+                              {req.leave_type} LEAVE
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-blue-500/10 text-blue-500">
+                              {req.category || 'planned'}
+                            </span>
+                          </div>
+                          <p className="text-xs" style={{ color: mutedColor }}>
+                            📅 <b>Period:</b> {req.start_date} to {req.end_date} • 📝 <b>Reason:</b> {req.reason}
                           </p>
-                          <p className="text-xs mt-1" style={{ color: mutedColor }}>{req.start_date} to {req.end_date} • {req.reason}</p>
+                          {req.short_notice_reason && (
+                            <p className="text-xs text-amber-500">⚡ <b>Short Notice Reason:</b> {req.short_notice_reason}</p>
+                          )}
+                          {req.emergency_reason && (
+                            <p className="text-xs text-rose-500">🚨 <b>Emergency Reason:</b> {req.emergency_reason}</p>
+                          )}
+                          {req.planned_work && (
+                            <p className="text-xs text-cyan-500">📋 <b>Planned Work:</b> {req.planned_work}</p>
+                          )}
+                          {req.exam_timetable_url && (
+                            <p className="text-xs text-indigo-500">🎓 <b>Exam Timetable:</b> <a href={req.exam_timetable_url} target="_blank" rel="noreferrer" className="underline">View Document</a></p>
+                          )}
+
+                          {/* 2-Tier Hierarchy Badges */}
+                          <div className="flex items-center gap-3 pt-2 text-[10px]">
+                            <span className={`px-2 py-0.5 rounded font-semibold ${req.dept_head_status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                              Dept Head: {req.dept_head_status || 'pending'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded font-semibold ${req.office_manager_status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                              Office Manager: {req.office_manager_status || 'pending'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex gap-2 items-center">
-                          {req.status === 'pending' ? (
-                            <>
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    await dataService.updateLeaveRequestStatus(req.id, 'approved', currentUser.id);
-                                    setLeaveRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved' } : r));
-                                  } catch (e) {
-                                    console.error(e);
-                                  }
-                                }}
-                                className="bg-emerald-500 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-emerald-600"
-                              >
-                                Approve
-                              </button>
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    await dataService.updateLeaveRequestStatus(req.id, 'rejected', currentUser.id);
-                                    setLeaveRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected' } : r));
-                                  } catch (e) {
-                                    console.error(e);
-                                  }
-                                }}
-                                className="bg-rose-500 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-rose-600"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-xs font-bold uppercase" style={{ color: req.status === 'approved' ? '#10b981' : '#f43f5e' }}>
-                              {req.status}
+
+                        {/* Approval Controls */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {req.status === 'pending' && (
+                            <button
+                              onClick={() => handleDeptHeadApprove(req.id)}
+                              className="px-3 py-1.5 rounded-xl bg-blue-500 text-white text-xs font-bold shadow-sm hover:bg-blue-600 transition-colors"
+                            >
+                              Level 1: Dept Head Approve
+                            </button>
+                          )}
+                          {(req.status === 'pending' || req.status === 'dept_head_approved') && req.office_manager_status !== 'approved' && (
+                            <button
+                              onClick={() => handleOfficeManagerApprove(req.id)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
+                            >
+                              Level 2: Office Manager Approve
+                            </button>
+                          )}
+                          {req.status !== 'rejected' && req.status !== 'approved' && (
+                            <button
+                              onClick={() => handleRejectLeave(req.id)}
+                              className="px-3 py-1.5 rounded-xl bg-rose-500 text-white text-xs font-bold shadow-sm hover:bg-rose-600 transition-colors"
+                            >
+                              Reject
+                            </button>
+                          )}
+                          {req.status === 'approved' && (
+                            <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 font-extrabold text-xs uppercase">
+                              ✅ Fully Approved
                             </span>
                           )}
-                          <button 
-                            onClick={() => setSelectedEmployeeId(req.user_id || req.user?.id)}
-                            className="text-xs text-blue-500 hover:underline ml-2"
-                          >
-                            Dashboard
-                          </button>
+                          {req.status === 'rejected' && (
+                            <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-500 font-extrabold text-xs uppercase">
+                              ❌ Rejected
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 🏢 COMPANY WFH TAB */}
+            {activeTab === 'company_wfh' && (
+              <div className="glass-card p-6 space-y-6">
+                <div className="flex justify-between items-center border-b pb-4" style={{ borderColor }}>
+                  <div>
+                    <h2 className="text-xl font-bold" style={{ color: textColor }}>🏢 Company-Wide WFH Bulk Declarations</h2>
+                    <p className="text-xs mt-1" style={{ color: mutedColor }}>Declare office-wide WFH due to emergency events (Red Alert, Traffic, Weather)</p>
+                  </div>
+                  <button 
+                    onClick={() => setCompanyWfhModalOpen(true)}
+                    className="btn-primary text-xs px-4 py-2.5 shadow-md flex items-center gap-2"
+                  >
+                    <span>➕ Declare Company WFH</span>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {companyWfhList.length === 0 ? (
+                    <div className="text-center py-12" style={{ color: mutedColor }}>No Company WFH declarations recorded.</div>
+                  ) : (
+                    companyWfhList.map(decl => (
+                      <div key={decl.id} className="p-4 rounded-xl border flex justify-between items-center glass-card" style={{ borderColor }}>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-cyan-500">📅 {decl.date}</span>
+                            <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-500 font-bold uppercase">{decl.target_type} Target</span>
+                          </div>
+                          <p className="text-xs mt-1 font-semibold" style={{ color: textColor }}>Reason: {decl.reason}</p>
+                        </div>
+                        <span className="text-xs text-emerald-500 font-bold">Active Bulk WFH</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 📈 REPORTS & EXPORTS TAB */}
+            {activeTab === 'reports' && (
+              <div className="glass-card p-6 space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: textColor }}>📈 HR Reports & Monthly CSV Exports</h2>
+                  <p className="text-xs mt-1" style={{ color: mutedColor }}>Generate and download official CSV audit reports for payroll & HR management</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {[
+                    { type: 'attendance', title: '📅 Monthly Attendance Log', desc: 'Daily check-in, check-out, working hours, and notes' },
+                    { type: 'late_fines', title: '🟠 Late Fines & Deductions', desc: 'Detailed ₹1/min late minute fine calculation & escalations' },
+                    { type: 'overtime', title: '⏱️ Overtime Hours Report', desc: 'Verified overtime hours logged post 7:30 PM / 6:00 PM' },
+                    { type: 'wfh', title: '🏠 WFH Requests & Declarations', desc: 'Employee requested WFH and Company-wide emergency WFH' },
+                    { type: 'leave', title: '🏖️ Leave Balances & Applications', desc: 'Casual, Sick, Emergency, and Special leave records' },
+                  ].map(rep => (
+                    <div key={rep.type} className="glass-card p-5 border flex flex-col justify-between" style={{ borderColor }}>
+                      <div>
+                        <h4 className="font-bold text-base mb-1" style={{ color: textColor }}>{rep.title}</h4>
+                        <p className="text-xs" style={{ color: mutedColor }}>{rep.desc}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDownloadReport(rep.type as any)}
+                        className="mt-4 w-full btn-primary py-2.5 text-xs font-bold shadow-md flex items-center justify-center gap-2"
+                      >
+                        <span>⬇️ Download CSV Report</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 📋 AUDIT LOGS TAB */}
+            {activeTab === 'audit' && (
+              <div className="glass-card p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold" style={{ color: textColor }}>📋 HRMS Automated Audit Logs</h2>
+                    <p className="text-xs mt-1" style={{ color: mutedColor }}>System audit trail of policy changes, attendance overrides, and leave approvals</p>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search audit log..."
+                    className="input-field text-xs py-2 px-3 min-w-[200px]"
+                  />
+                </div>
+
+                <div className="glass-card overflow-x-auto shadow-sm">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b" style={{ borderColor, color: mutedColor }}>
+                        <th className="p-4 font-semibold">Timestamp</th>
+                        <th className="p-4 font-semibold">Action</th>
+                        <th className="p-4 font-semibold">Performed By</th>
+                        <th className="p-4 font-semibold">Target Employee</th>
+                        <th className="p-4 font-semibold">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y" style={{ borderColor }}>
+                      {auditLogsList.map(log => (
+                        <tr key={log.id} className="hover:bg-black/5 dark:hover:bg-white/5">
+                          <td className="p-4 font-mono">{new Date(log.created_at).toLocaleString()}</td>
+                          <td className="p-4 font-bold text-blue-500">{log.action}</td>
+                          <td className="p-4">{log.performer?.full_name || log.performed_by || 'System'}</td>
+                          <td className="p-4">{log.target_user?.full_name || log.target_user_id || 'All'}</td>
+                          <td className="p-4 truncate max-w-xs">{log.details || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {auditLogsList.length === 0 && (
+                    <div className="p-8 text-center" style={{ color: mutedColor }}>No audit logs recorded yet.</div>
                   )}
                 </div>
               </div>
@@ -1460,7 +1836,6 @@ export default function HRManagementView() {
               <div className="glass-card p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold" style={{ color: textColor }}>Company Holidays ({new Date().getFullYear()})</h2>
-                  <button className="btn-primary text-sm px-4 py-2">➕ Add Holiday</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {holidays.map(h => (
@@ -1470,42 +1845,341 @@ export default function HRManagementView() {
                       <p className="text-sm mt-1" style={{ color: mutedColor }}>{new Date(h.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                     </div>
                   ))}
-                  {holidays.length === 0 && <p style={{ color: mutedColor }}>No holidays configured.</p>}
                 </div>
               </div>
             )}
 
-            {/* ⏱️ LATE POLICY TAB */}
+            {/* ⚙️ POLICY SETTINGS TAB (FULLY UNLOCKED & EDITABLE) */}
             {activeTab === 'policy' && (
-              <div className="glass-card p-6 max-w-2xl">
-                <h2 className="text-xl font-bold mb-6" style={{ color: textColor }}>Late Policy & Timings Settings</h2>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 items-center">
-                    <label className="text-sm font-semibold" style={{ color: textColor }}>Official Reporting Time</label>
-                    <input type="time" disabled value={latePolicy?.reporting_time?.substring(0,5) || '09:30'} className="input-field" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 items-center">
-                    <label className="text-sm font-semibold" style={{ color: textColor }}>Grace Period (Minutes)</label>
-                    <input type="number" disabled value={latePolicy?.grace_period_minutes || 15} className="input-field" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 items-center">
-                    <label className="text-sm font-semibold" style={{ color: textColor }}>Half Day Start Time</label>
-                    <input type="time" disabled value={latePolicy?.half_day_start_time?.substring(0,5) || '12:00'} className="input-field" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 items-center">
-                    <label className="text-sm font-semibold" style={{ color: textColor }}>Max Allowed Late Marks / Month</label>
-                    <input type="number" disabled value={latePolicy?.allowed_late_marks_per_month || 3} className="input-field" />
-                  </div>
-                  <div className="pt-4 mt-4 border-t" style={{ borderColor }}>
-                    <button className="btn-primary w-full py-3 opacity-50 cursor-not-allowed">Save Policy Changes</button>
-                    <p className="text-xs text-center mt-2" style={{ color: mutedColor }}>Form disabled in preview mode.</p>
-                  </div>
+              <div className="glass-card p-6 max-w-3xl space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: textColor }}>⚙️ HR Policy & Timings Dynamic Configuration</h2>
+                  <p className="text-xs mt-1" style={{ color: mutedColor }}>Configure official working hours, grace periods, fine deduction rates, and leave limits dynamically</p>
                 </div>
+
+                <form onSubmit={handleSavePolicy} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Weekday Start Time</label>
+                      <input 
+                        type="time" 
+                        value={policyForm.weekday_start?.substring(0,5) || '09:30'} 
+                        onChange={e => setPolicyForm({ ...policyForm, weekday_start: `${e.target.value}:00` })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Weekday End Time</label>
+                      <input 
+                        type="time" 
+                        value={policyForm.weekday_end?.substring(0,5) || '18:30'} 
+                        onChange={e => setPolicyForm({ ...policyForm, weekday_end: `${e.target.value}:00` })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Saturday Start Time</label>
+                      <input 
+                        type="time" 
+                        value={policyForm.saturday_start?.substring(0,5) || '09:30'} 
+                        onChange={e => setPolicyForm({ ...policyForm, saturday_start: `${e.target.value}:00` })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Saturday End Time</label>
+                      <input 
+                        type="time" 
+                        value={policyForm.saturday_end?.substring(0,5) || '17:00'} 
+                        onChange={e => setPolicyForm({ ...policyForm, saturday_end: `${e.target.value}:00` })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Grace Period Cutoff Time</label>
+                      <input 
+                        type="time" 
+                        value={policyForm.grace_period_time?.substring(0,5) || '09:45'} 
+                        onChange={e => setPolicyForm({ ...policyForm, grace_period_time: `${e.target.value}:00` })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Late Mark Start Cutoff Time</label>
+                      <input 
+                        type="time" 
+                        value={policyForm.late_mark_time?.substring(0,5) || '10:00'} 
+                        onChange={e => setPolicyForm({ ...policyForm, late_mark_time: `${e.target.value}:00` })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Late Deduction Rate (₹/Min)</label>
+                      <input 
+                        type="number" 
+                        step="0.5"
+                        value={policyForm.late_minute_deduction_rate ?? 1.0} 
+                        onChange={e => setPolicyForm({ ...policyForm, late_minute_deduction_rate: parseFloat(e.target.value) })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Max Lunch Duration (Minutes)</label>
+                      <input 
+                        type="number" 
+                        value={policyForm.max_lunch_duration_minutes ?? 45} 
+                        onChange={e => setPolicyForm({ ...policyForm, max_lunch_duration_minutes: parseInt(e.target.value) })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Overtime Start Threshold (Minutes Post-Closing)</label>
+                      <input 
+                        type="number" 
+                        value={policyForm.overtime_threshold_minutes ?? 60} 
+                        onChange={e => setPolicyForm({ ...policyForm, overtime_threshold_minutes: parseInt(e.target.value) })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Max Employee WFH / Month</label>
+                      <input 
+                        type="number" 
+                        value={policyForm.max_employee_wfh_per_month ?? 2} 
+                        onChange={e => setPolicyForm({ ...policyForm, max_employee_wfh_per_month: parseInt(e.target.value) })}
+                        className="input-field w-full text-xs" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t" style={{ borderColor }}>
+                    <button
+                      type="submit"
+                      disabled={savingPolicy}
+                      className="btn-primary w-full py-3 text-xs font-bold shadow-md flex items-center justify-center gap-2"
+                    >
+                      {savingPolicy ? 'Saving Changes...' : '💾 Save Policy Settings'}
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
           </motion.div>
         </AnimatePresence>
       )}
+
+      {/* ─── LEAVE APPLICATION MODAL ─── */}
+      <AnimatePresence>
+        {leaveModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg glass-card p-6 rounded-2xl shadow-2xl relative border overflow-y-auto max-h-[90vh]"
+              style={{ background: isDark ? '#14141f' : '#ffffff', borderColor }}
+            >
+              <div className="flex justify-between items-center mb-4 pb-2 border-b" style={{ borderColor }}>
+                <h3 className="text-lg font-bold" style={{ color: textColor }}>🏖️ Apply for Leave / WFH</h3>
+                <button onClick={() => setLeaveModalOpen(false)} className="text-gray-500 font-bold">✕</button>
+              </div>
+
+              {leaveError && <div className="mb-3 p-3 rounded-xl bg-rose-500/10 text-rose-500 text-xs font-bold">⚠️ {leaveError}</div>}
+
+              <form onSubmit={handleSubmitLeaveRequest} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Notice Category</label>
+                    <select value={leaveCategory} onChange={e => setLeaveCategory(e.target.value as any)} className="input-field w-full text-xs">
+                      <option value="planned">📅 Planned (3+ Days Notice)</option>
+                      <option value="short_notice">⚡ Short Notice</option>
+                      <option value="emergency">🚨 Emergency (Today Only)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Leave Type</label>
+                    <select value={leaveType} onChange={e => setLeaveType(e.target.value)} className="input-field w-full text-xs font-bold">
+                      <option value="casual">Casual Leave</option>
+                      <option value="sick">Sick Leave</option>
+                      <option value="birthday">Birthday Leave</option>
+                      <option value="marriage">Marriage Leave (7 Days)</option>
+                      <option value="bereavement">Bereavement Leave (4 Days)</option>
+                      <option value="emergency">Emergency Leave</option>
+                      <option value="lwp">Leave Without Pay (LWP)</option>
+                      <option value="wfh">Work From Home (WFH)</option>
+                      <option value="exam">Exam Leave (Interns Only)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Start Date</label>
+                    <input type="date" value={leaveStartDate} onChange={e => setLeaveStartDate(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>End Date</label>
+                    <input type="date" value={leaveEndDate} onChange={e => setLeaveEndDate(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Reason</label>
+                  <textarea rows={2} value={leaveReason} onChange={e => setLeaveReason(e.target.value)} required placeholder="Reason for leave request..." className="input-field w-full text-xs" />
+                </div>
+
+                {leaveCategory === 'short_notice' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-amber-500">Short Notice Reason *</label>
+                    <input type="text" value={shortNoticeReason} onChange={e => setShortNoticeReason(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                {leaveCategory === 'emergency' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-rose-500">Emergency Trigger Reason *</label>
+                    <input type="text" value={emergencyReason} onChange={e => setEmergencyReason(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                {leaveCategory === 'planned' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-cyan-500">Planned Work Coverage Summary *</label>
+                    <input type="text" value={plannedWork} onChange={e => setPlannedWork(e.target.value)} required placeholder="Summary of coverage during absence..." className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                {leaveType === 'exam' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-indigo-500">Exam Timetable Document Link / URL *</label>
+                    <input type="url" value={examUrl} onChange={e => setExamUrl(e.target.value)} required placeholder="https://..." className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-3">
+                  <button type="button" onClick={() => setLeaveModalOpen(false)} className="w-1/2 py-2.5 rounded-xl border text-xs font-semibold" style={{ borderColor, color: textColor }}>Cancel</button>
+                  <button type="submit" disabled={submittingLeave} className="w-1/2 btn-primary py-2.5 text-xs font-bold shadow-md">{submittingLeave ? 'Submitting...' : 'Submit Request'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── COMPANY WFH DECLARATION MODAL ─── */}
+      <AnimatePresence>
+        {companyWfhModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md glass-card p-6 rounded-2xl shadow-2xl relative border"
+              style={{ background: isDark ? '#14141f' : '#ffffff', borderColor }}
+            >
+              <div className="flex justify-between items-center mb-4 pb-2 border-b" style={{ borderColor }}>
+                <h3 className="text-lg font-bold" style={{ color: textColor }}>🏢 Declare Company WFH</h3>
+                <button onClick={() => setCompanyWfhModalOpen(false)} className="text-gray-500 font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleCreateCompanyWfh} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Date</label>
+                  <input type="date" value={wfhDate} onChange={e => setWfhDate(e.target.value)} required className="input-field w-full text-xs" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Emergency Reason</label>
+                  <select value={wfhReason} onChange={e => setWfhReason(e.target.value)} className="input-field w-full text-xs font-bold">
+                    <option value="Red Alert / Heavy Rain">Red Alert / Heavy Rain</option>
+                    <option value="Heavy Traffic Jam">Heavy Traffic Jam</option>
+                    <option value="City Flood Warning">City Flood Warning</option>
+                    <option value="Office Maintenance">Office Maintenance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Target Scope</label>
+                  <select value={wfhTargetType} onChange={e => setWfhTargetType(e.target.value as any)} className="input-field w-full text-xs">
+                    <option value="all">All Employees</option>
+                    <option value="department">Specific Department</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-3">
+                  <button type="button" onClick={() => setCompanyWfhModalOpen(false)} className="w-1/2 py-2.5 rounded-xl border text-xs font-semibold" style={{ borderColor, color: textColor }}>Cancel</button>
+                  <button type="submit" disabled={savingWfh} className="w-1/2 btn-primary py-2.5 text-xs font-bold shadow-md">{savingWfh ? 'Declaring...' : 'Declare WFH'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── EMPLOYEE PROFILE EDIT MODAL ─── */}
+      <AnimatePresence>
+        {empModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg glass-card p-6 rounded-2xl shadow-2xl relative border overflow-y-auto max-h-[90vh]"
+              style={{ background: isDark ? '#14141f' : '#ffffff', borderColor }}
+            >
+              <div className="flex justify-between items-center mb-4 pb-2 border-b" style={{ borderColor }}>
+                <h3 className="text-lg font-bold" style={{ color: textColor }}>👤 Edit Employee Profile ({empEditUser?.full_name})</h3>
+                <button onClick={() => setEmpModalOpen(false)} className="text-gray-500 font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleSaveEmpProfile} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Phone / Mobile</label>
+                    <input type="text" value={empPhone} onChange={e => setEmpPhone(e.target.value)} className="input-field w-full text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Emergency Contact</label>
+                    <input type="text" value={empEmergencyContact} onChange={e => setEmpEmergencyContact(e.target.value)} className="input-field w-full text-xs" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Address</label>
+                  <input type="text" value={empAddress} onChange={e => setEmpAddress(e.target.value)} className="input-field w-full text-xs" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Date of Birth (DOB)</label>
+                    <input type="date" value={empDob} onChange={e => setEmpDob(e.target.value)} className="input-field w-full text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Joining Date</label>
+                    <input type="date" value={empJoiningDate} onChange={e => setEmpJoiningDate(e.target.value)} className="input-field w-full text-xs" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Employment Type</label>
+                    <select value={empEmploymentType} onChange={e => setEmpEmploymentType(e.target.value as any)} className="input-field w-full text-xs">
+                      <option value="full_time">Full Time</option>
+                      <option value="intern">Intern</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Reporting Manager</label>
+                    <select value={empReportingManagerId} onChange={e => setEmpReportingManagerId(e.target.value)} className="input-field w-full text-xs">
+                      <option value="">Select Manager</option>
+                      {teamMembers.map(m => (
+                        <option key={m.id} value={m.id}>{m.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-3">
+                  <button type="button" onClick={() => setEmpModalOpen(false)} className="w-1/2 py-2.5 rounded-xl border text-xs font-semibold" style={{ borderColor, color: textColor }}>Cancel</button>
+                  <button type="submit" disabled={savingEmpProfile} className="w-1/2 btn-primary py-2.5 text-xs font-bold shadow-md">{savingEmpProfile ? 'Saving...' : 'Save Profile'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ─── EDIT / LOG ATTENDANCE MODAL ─── */}
       <AnimatePresence>

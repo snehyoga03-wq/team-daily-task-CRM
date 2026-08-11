@@ -1,4 +1,5 @@
 import { supabase, DbTask, DbSubtask, DbLead, DbCalendarEvent, DbChannel, DbMessage, DbNotification, DbUser, DbAttendance, DbTeam } from './supabase';
+import { fetchHrPolicySettings, calculateAttendanceStatus, calculateOvertimeHours, validateLunchBreakStart, logHrmsAudit } from './hrmsService';
 
 // ─── TASKS ─────────────────────────────────────────────────────────
 
@@ -491,36 +492,94 @@ export async function checkIn(userId: string) {
   const now = new Date();
   const today = getTodayDateString(now);
   
-  // Office start time is 10:00 AM local time
-  const officeStartTime = new Date(now);
-  officeStartTime.setHours(10, 0, 0, 0);
-  
-  const status = now > officeStartTime ? 'late' : 'present';
+  // Fetch HR policy and monthly late count for user
+  const policy = await fetchHrPolicySettings();
+  const currentMonthPrefix = today.substring(0, 7);
+  const { data: monthLates } = await supabase
+    .from('attendance')
+    .select('id')
+    .eq('user_id', userId)
+    .gte('date', `${currentMonthPrefix}-01`)
+    .eq('status', 'late');
+
+  const monthlyLateCount = monthLates?.length || 0;
+  const calc = calculateAttendanceStatus(now, monthlyLateCount, policy);
+
+  const payload: Partial<DbAttendance> = {
+    user_id: userId,
+    date: today,
+    check_in: now.toISOString(),
+    status: calc.status as any,
+    late_minutes: calc.lateMinutes,
+    fine_amount: calc.fineAmount,
+    notes: calc.note || null,
+  };
 
   const { data, error } = await supabase
     .from('attendance')
-    .upsert({
-      user_id: userId,
-      date: today,
-      check_in: now.toISOString(),
-      status: status,
-    }, { onConflict: 'user_id,date' })
+    .upsert(payload, { onConflict: 'user_id,date' })
     .select()
     .single();
+
   if (error) throw error;
+
+  if (calc.fineAmount > 0 || calc.isLate) {
+    createNotification({
+      user_id: userId,
+      title: calc.fineAmount > 0 ? '⚠️ Late Deduction Applied' : '🟠 Late Check-In Marked',
+      message: calc.note || `Checked in at ${now.toLocaleTimeString()}`,
+      type: 'attendance_alert',
+    });
+  }
+
+  logHrmsAudit('Employee Check-In', userId, userId, `Checked in at ${now.toLocaleTimeString()}. Status: ${calc.status}`);
+
   return data as DbAttendance;
 }
 
 export async function checkOut(userId: string) {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = getTodayDateString(now);
+  
+  const policy = await fetchHrPolicySettings();
+  const otHours = calculateOvertimeHours(now, policy);
+
+  const updates: Partial<DbAttendance> = {
+    check_out: now.toISOString(),
+    status: 'checked_out',
+    ot_hours: otHours,
+  };
+
   const { data, error } = await supabase
     .from('attendance')
-    .update({ check_out: new Date().toISOString(), status: 'checked_out' })
+    .update(updates)
     .eq('user_id', userId)
     .eq('date', today)
     .select()
     .single();
+
   if (error) throw error;
+
+  // Create overtime request record if OT hours > 0
+  if (otHours > 0) {
+    await supabase.from('overtime_requests').insert({
+      user_id: userId,
+      date: today,
+      hours: otHours,
+      reason: `Automated post-closing overtime (${otHours} hrs)`,
+      status: 'approved',
+    });
+
+    createNotification({
+      user_id: userId,
+      title: '⏱️ Overtime Logged',
+      message: `You completed ${otHours} hours of overtime today!`,
+      type: 'overtime_alert',
+    });
+  }
+
+  logHrmsAudit('Employee Check-Out', userId, userId, `Checked out at ${now.toLocaleTimeString()}. OT: ${otHours} hrs`);
+
   return data as DbAttendance;
 }
 
@@ -562,6 +621,9 @@ export async function updateAttendanceStatus(userId: string, status: DbAttendanc
 export async function startBreak(userId: string) {
   const today = new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
+
+  const policy = await fetchHrPolicySettings();
+  await validateLunchBreakStart(userId, today, policy);
 
   // 1. Insert into attendance_logs
   const { data: logData, error: logError } = await supabase
@@ -787,6 +849,16 @@ export async function createAttendanceRecord(record: Partial<DbAttendance>) {
 
 // Export HRMS V2 Services
 export * from './hrmsService';
+
+if (typeof window !== 'undefined') {
+  (window as any).dataService = {
+    checkIn,
+    checkOut,
+    createAttendanceRecord,
+    fetchAllAttendanceData,
+    fetchAttendance,
+  };
+}
 
 
 

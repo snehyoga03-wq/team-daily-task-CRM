@@ -39,6 +39,61 @@ export default function AttendanceView() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const isToday = selectedDate === new Date().toISOString().split('T')[0];
 
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState('casual');
+  const [leaveCategory, setLeaveCategory] = useState<'planned' | 'short_notice' | 'emergency'>('planned');
+  const [leaveStartDate, setLeaveStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [leaveEndDate, setLeaveEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [shortNoticeReason, setShortNoticeReason] = useState('');
+  const [emergencyReason, setEmergencyReason] = useState('');
+  const [plannedWork, setPlannedWork] = useState('');
+  const [examUrl, setExamUrl] = useState('');
+  const [submittingLeave, setSubmittingLeave] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [myLeaveRequests, setMyLeaveRequests] = useState<any[]>([]);
+
+  const fetchMyLeaveData = async () => {
+    if (!currentUser) return;
+    try {
+      const requests = await dataService.fetchLeaveRequests();
+      setMyLeaveRequests((requests || []).filter(r => r.user_id === currentUser.id));
+    } catch (err) {
+      console.error('Failed to fetch leave requests:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) fetchMyLeaveData();
+  }, [currentUser]);
+
+  const handleSubmitLeaveRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    setSubmittingLeave(true);
+    setLeaveError(null);
+    try {
+      await dataService.submitLeaveRequest({
+        user_id: currentUser.id,
+        leave_type: leaveType as any,
+        category: leaveCategory,
+        start_date: leaveStartDate,
+        end_date: leaveEndDate,
+        reason: leaveReason,
+        short_notice_reason: leaveCategory === 'short_notice' ? shortNoticeReason : null,
+        emergency_reason: leaveCategory === 'emergency' ? emergencyReason : null,
+        planned_work: leaveCategory === 'planned' ? plannedWork : null,
+        exam_timetable_url: leaveType === 'exam' ? examUrl : null,
+      });
+      await fetchMyLeaveData();
+      setLeaveModalOpen(false);
+    } catch (err: any) {
+      setLeaveError(err.message || 'Failed to submit leave request');
+    } finally {
+      setSubmittingLeave(false);
+    }
+  };
+
   const fetchAttendanceData = async (date: string) => {
     setLoading(true);
     try {
@@ -85,12 +140,14 @@ export default function AttendanceView() {
     
     let isLate = false;
     let lateMinutes = 0;
+    let fineAmount = record?.fine_amount || 0;
     if (checkInTime) {
       const officeStart = new Date(checkInTime);
-      officeStart.setHours(9, 45, 0, 0); // Assuming 9:45 is grace period end based on policy
+      officeStart.setHours(9, 45, 0, 0); // 9:45 AM grace period cutoff
       if (checkInTime > officeStart) {
         isLate = true;
         lateMinutes = Math.floor((checkInTime.getTime() - officeStart.getTime()) / 60000);
+        if (!fineAmount) fineAmount = Math.max(0, lateMinutes * 1.0);
       }
     }
     
@@ -111,6 +168,7 @@ export default function AttendanceView() {
       breakMs, 
       isLate, 
       lateMinutes,
+      fineAmount,
       totalTasks,
       completedTasks,
       pendingTasks,
@@ -209,6 +267,14 @@ export default function AttendanceView() {
           <p className="text-sm mt-1" style={{ color: mutedColor }}>{displayDateStr} • Daily Operations</p>
         </div>
         <div className="flex items-center gap-3">
+          <motion.button 
+            whileHover={{ scale: 1.05 }} 
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => setLeaveModalOpen(true)} 
+            className="btn-primary text-xs font-bold px-4 py-2 flex items-center gap-2 shadow-md"
+          >
+            <span>🏖️ Apply for Leave / WFH</span>
+          </motion.button>
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={exportCsv} className="btn-primary text-xs" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: textColor }}>
             ⬇️ Export CSV
           </motion.button>
@@ -325,12 +391,18 @@ export default function AttendanceView() {
                       <span style={{ color: mutedColor }}>Out:</span>
                       <span className="font-medium">{t.checkOutTime ? t.checkOutTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
                     </div>
-                    {t.isLate && (
+                    {(t.isLate || t.fineAmount > 0) && (
                       <div className="flex justify-between items-center max-w-[140px]">
-                        <span style={{ color: mutedColor }}>Late:</span>
-                        <span className="font-bold text-rose-500">{t.lateMinutes} mins</span>
+                        <span style={{ color: mutedColor }}>Late Fine:</span>
+                        <span className="font-bold text-rose-500">{t.lateMinutes > 0 ? `${t.lateMinutes}m ` : ''}(₹{t.fineAmount})</span>
                       </div>
                     )}
+                    {t.record?.ot_hours && t.record.ot_hours > 0 ? (
+                      <div className="flex justify-between items-center max-w-[140px]">
+                        <span style={{ color: mutedColor }}>OT:</span>
+                        <span className="font-bold text-emerald-500">⏱️ {t.record.ot_hours} hrs</span>
+                      </div>
+                    ) : null}
                   </div>
                   
                   {/* Productivity */}
@@ -394,6 +466,158 @@ export default function AttendanceView() {
           </div>
         )}
       </div>
+
+      {/* 🏖️ MY LEAVE REQUESTS & BALANCES PANEL (FOR ALL EMPLOYEES) */}
+      <div className="glass-card p-6 rounded-2xl space-y-4">
+        <div className="flex justify-between items-center border-b pb-3" style={{ borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
+          <div>
+            <h3 className="font-bold text-base" style={{ color: textColor }}>🏖️ My Leave Balances & Submitted Applications</h3>
+            <p className="text-xs mt-0.5" style={{ color: mutedColor }}>Monthly Credit: 1.5 Days • Max Accumulation Cap: 3.0 Days</p>
+          </div>
+          <button
+            onClick={() => setLeaveModalOpen(true)}
+            className="btn-primary text-xs font-bold px-3 py-1.5 shadow-sm"
+          >
+            ➕ New Leave / WFH Request
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+            <span className="text-[10px] uppercase font-bold text-purple-500 block">Accrued Leave Balance</span>
+            <span className="text-xl font-bold text-purple-600 dark:text-purple-400">1.5 / 3.0 Days</span>
+          </div>
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <span className="text-[10px] uppercase font-bold text-blue-500 block">Approved Leaves (This Month)</span>
+            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+              {myLeaveRequests.filter(r => r.status === 'approved').length} Days
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <span className="text-[10px] uppercase font-bold text-amber-500 block">Pending Level 1/2 Approvals</span>
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              {myLeaveRequests.filter(r => r.status === 'pending' || r.status === 'dept_head_approved').length} Requests
+            </span>
+          </div>
+        </div>
+
+        {/* Requests List */}
+        <div className="space-y-2 pt-2">
+          {myLeaveRequests.length === 0 ? (
+            <p className="text-xs text-center py-4" style={{ color: mutedColor }}>No leave or WFH applications submitted yet.</p>
+          ) : (
+            myLeaveRequests.map(req => (
+              <div key={req.id} className="p-3 rounded-xl border flex justify-between items-center text-xs" style={{ borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
+                <div>
+                  <span className="font-bold capitalize text-purple-500">{req.leave_type} Leave</span> ({req.category || 'planned'})
+                  <p className="text-[11px] mt-0.5" style={{ color: mutedColor }}>📅 {req.start_date} to {req.end_date} • {req.reason}</p>
+                </div>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className={`px-2 py-0.5 rounded font-bold uppercase ${req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' : req.status === 'rejected' ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                    {req.status}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ─── LEAVE APPLICATION MODAL (ACCESSIBLE TO ALL EMPLOYEES) ─── */}
+      <AnimatePresence>
+        {leaveModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg glass-card p-6 rounded-2xl shadow-2xl relative border overflow-y-auto max-h-[90vh]"
+              style={{ background: isDark ? '#14141f' : '#ffffff', borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}
+            >
+              <div className="flex justify-between items-center mb-4 pb-2 border-b" style={{ borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
+                <h3 className="text-lg font-bold" style={{ color: textColor }}>🏖️ Apply for Leave / WFH</h3>
+                <button onClick={() => setLeaveModalOpen(false)} className="text-gray-500 font-bold">✕</button>
+              </div>
+
+              {leaveError && <div className="mb-3 p-3 rounded-xl bg-rose-500/10 text-rose-500 text-xs font-bold">⚠️ {leaveError}</div>}
+
+              <form onSubmit={handleSubmitLeaveRequest} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Notice Category</label>
+                    <select value={leaveCategory} onChange={e => setLeaveCategory(e.target.value as any)} className="input-field w-full text-xs">
+                      <option value="planned">📅 Planned (3+ Days Notice)</option>
+                      <option value="short_notice">⚡ Short Notice</option>
+                      <option value="emergency">🚨 Emergency (Today Only)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Leave Type</label>
+                    <select value={leaveType} onChange={e => setLeaveType(e.target.value)} className="input-field w-full text-xs font-bold">
+                      <option value="casual">Casual Leave</option>
+                      <option value="sick">Sick Leave</option>
+                      <option value="birthday">Birthday Leave</option>
+                      <option value="marriage">Marriage Leave (7 Days)</option>
+                      <option value="bereavement">Bereavement Leave (4 Days)</option>
+                      <option value="emergency">Emergency Leave</option>
+                      <option value="lwp">Leave Without Pay (LWP)</option>
+                      <option value="wfh">Work From Home (WFH)</option>
+                      <option value="exam">Exam Leave (Interns Only)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Start Date</label>
+                    <input type="date" value={leaveStartDate} onChange={e => setLeaveStartDate(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>End Date</label>
+                    <input type="date" value={leaveEndDate} onChange={e => setLeaveEndDate(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Reason</label>
+                  <textarea rows={2} value={leaveReason} onChange={e => setLeaveReason(e.target.value)} required placeholder="Reason for leave request..." className="input-field w-full text-xs" />
+                </div>
+
+                {leaveCategory === 'short_notice' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-amber-500">Short Notice Reason *</label>
+                    <input type="text" value={shortNoticeReason} onChange={e => setShortNoticeReason(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                {leaveCategory === 'emergency' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-rose-500">Emergency Trigger Reason *</label>
+                    <input type="text" value={emergencyReason} onChange={e => setEmergencyReason(e.target.value)} required className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                {leaveCategory === 'planned' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-cyan-500">Planned Work Coverage Summary *</label>
+                    <input type="text" value={plannedWork} onChange={e => setPlannedWork(e.target.value)} required placeholder="Summary of coverage during absence..." className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                {leaveType === 'exam' && (
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-indigo-500">Exam Timetable Document Link / URL *</label>
+                    <input type="url" value={examUrl} onChange={e => setExamUrl(e.target.value)} required placeholder="https://..." className="input-field w-full text-xs" />
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-3">
+                  <button type="button" onClick={() => setLeaveModalOpen(false)} className="w-1/2 py-2.5 rounded-xl border text-xs font-semibold" style={{ borderColor: isDark ? '#2a2a3a' : '#e5e2f0', color: textColor }}>Cancel</button>
+                  <button type="submit" disabled={submittingLeave} className="w-1/2 btn-primary py-2.5 text-xs font-bold shadow-md">{submittingLeave ? 'Submitting...' : 'Submit Request'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
