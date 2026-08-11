@@ -327,8 +327,8 @@ export default function AttendanceView() {
       </div>
 
       {/* Advanced Employee Table */}
-      <div className="glass-card overflow-hidden overflow-x-auto shadow-sm">
-        <div className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] gap-4 px-6 py-4 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0', background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
+      <div className="glass-card overflow-x-auto shadow-sm">
+        <div className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] min-w-[720px] gap-4 px-6 py-4 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0', background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
           <span>Employee Information</span>
           <span>Time Log</span>
           <span>Productivity</span>
@@ -350,7 +350,7 @@ export default function AttendanceView() {
                 <motion.div 
                   key={t.member.id} 
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                  className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] gap-4 px-6 py-4 items-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors relative"
+                  className="grid grid-cols-[2fr,1.5fr,1.2fr,1fr,1.5fr] min-w-[720px] gap-4 px-6 py-4 items-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors relative"
                 >
                   {/* Active Indicator Line */}
                   {t.checkInTime && !t.checkOutTime && t.status !== 'on_break' && (

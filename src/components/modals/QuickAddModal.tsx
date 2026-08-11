@@ -73,14 +73,14 @@ export default function QuickAddModal() {
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setQuickAddOpen(false)} />
           <motion.div initial={{ opacity: 0, scale: 0.95, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -20 }}
-            className="fixed top-[20%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg p-6 rounded-2xl"
+            className="fixed top-[15%] sm:top-[20%] left-1/2 -translate-x-1/2 z-50 w-[92vw] max-w-lg p-4 sm:p-6 rounded-2xl"
             style={{ background: isDark ? '#12121a' : '#fff', border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}`, boxShadow: '0 25px 60px rgba(0,0,0,0.3)' }}>
             <h2 className="text-lg font-semibold mb-4" style={{ color: textColor }}>✨ Quick Add</h2>
 
             {/* Type Selector */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 flex-wrap">
               {(['task', 'lead', 'event'] as const).map(t => (
-                <button key={t} onClick={() => setType(t)} className="px-4 py-2 rounded-xl text-xs font-medium capitalize transition-all" style={{
+                <button key={t} onClick={() => setType(t)} className="px-3 sm:px-4 py-2 rounded-xl text-xs font-medium capitalize transition-all" style={{
                   background: type === t ? 'rgba(139,92,246,0.15)' : isDark ? '#1a1a25' : '#f3f0ff',
                   color: type === t ? '#a855f7' : mutedColor,
                   border: `1px solid ${type === t ? 'rgba(139,92,246,0.3)' : 'transparent'}`,
@@ -92,11 +92,11 @@ export default function QuickAddModal() {
 
             <input value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               placeholder={type === 'task' ? 'What needs to be done?' : type === 'lead' ? 'Lead name...' : 'Event title...'}
-              className="input-field mb-4 text-base" autoFocus />
+              className="input-field mb-4 text-sm sm:text-base" autoFocus />
 
             {type === 'task' && (
               <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-semibold" style={{ color: mutedColor }}>Priority:</span>
                   {(['low', 'medium', 'high', 'urgent'] as const).map(p => (
                     <button key={p} onClick={() => setPriority(p)} className={`badge badge-${p} cursor-pointer transition-all ${priority === p ? '' : 'opacity-50'}`}
@@ -105,7 +105,7 @@ export default function QuickAddModal() {
                     </button>
                   ))}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-semibold" style={{ color: mutedColor }}>Plan Type:</span>
                   {(['Planned', 'Unplanned'] as const).map(pt => (
                     <button key={pt} onClick={() => setPlanType(pt)} className="px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer"

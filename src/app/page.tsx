@@ -11,6 +11,7 @@ import LoginScreen from '@/components/auth/LoginScreen';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import RightPanel from '@/components/layout/RightPanel';
+import MobileDrawer from '@/components/layout/MobileDrawer';
 import QuickAddModal from '@/components/modals/QuickAddModal';
 import AttendanceCheckInModal from '@/components/modals/AttendanceCheckInModal';
 import DashboardView from '@/components/views/DashboardView';
@@ -230,11 +231,18 @@ export default function Home() {
             { id: 'tasks', icon: '✅', label: 'Tasks' },
             { id: 'chat', icon: '💬', label: 'Chat' },
             { id: 'leads', icon: '🎯', label: 'Leads' },
-            { id: 'settings', icon: '⚙️', label: 'More' },
+            { id: 'more', icon: '☰', label: 'More' },
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => useAppStore.getState().setActiveView(tab.id as any)}
+              onClick={() => {
+                if (tab.id === 'more') {
+                  const state = useAppStore.getState();
+                  state.setMobileDrawerOpen(!state.mobileDrawerOpen);
+                } else {
+                  useAppStore.getState().setActiveView(tab.id as any);
+                }
+              }}
               className="flex flex-col items-center p-2 rounded-xl"
             >
               <span className="text-xl" style={{ filter: activeView === tab.id ? 'none' : 'grayscale(1) opacity(0.5)' }}>
@@ -250,7 +258,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Modals & Mobile Drawer */}
+      <MobileDrawer />
       <QuickAddModal />
       <AttendanceCheckInModal />
       <FloatingAIAssistant />

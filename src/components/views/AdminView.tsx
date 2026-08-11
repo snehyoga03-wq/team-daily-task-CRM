@@ -488,13 +488,13 @@ export default function AdminView() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 p-1 rounded-2xl overflow-x-auto" style={{ background: isDark ? 'rgba(30,30,45,0.5)' : 'rgba(240,238,250,0.7)' }}>
+      <div className="flex gap-1 p-1 rounded-2xl overflow-x-auto no-scrollbar" style={{ background: isDark ? 'rgba(30,30,45,0.5)' : 'rgba(240,238,250,0.7)' }}>
         {tabs.map(tab => (
           <motion.button
             key={tab.id}
             whileTap={{ scale: 0.97 }}
             onClick={() => setActiveTab(tab.id)}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all relative whitespace-nowrap"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl text-xs font-semibold transition-all relative whitespace-nowrap"
             style={{
               color: activeTab === tab.id ? textColor : mutedColor,
               background: activeTab === tab.id ? (isDark ? 'rgba(139,92,246,0.15)' : '#fff') : 'transparent',
@@ -502,7 +502,7 @@ export default function AdminView() {
             }}
           >
             <span>{tab.icon}</span>
-            <span className="hidden sm:inline">{tab.label}</span>
+            <span>{tab.label}</span>
             {activeTab === tab.id && (
               <motion.div layoutId="admin-tab" className="absolute inset-0 rounded-xl" style={{
                 border: '1px solid rgba(139,92,246,0.2)',
@@ -693,7 +693,7 @@ export default function AdminView() {
           >
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-5 max-h-[85vh] flex flex-col overflow-hidden border"
+              className="w-[92vw] max-w-2xl rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[88vh] flex flex-col overflow-hidden border"
               style={{ background: isDark ? '#181824' : '#ffffff', borderColor }}
             >
               {/* Modal Header */}

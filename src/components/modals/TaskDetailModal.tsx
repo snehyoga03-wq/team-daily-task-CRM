@@ -371,14 +371,14 @@ export default function TaskDetailModal() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed inset-x-4 top-6 bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 flex rounded-3xl overflow-hidden glass-card shadow-2xl flex-col md:flex-row"
+            className="fixed inset-2 top-3 bottom-3 sm:inset-x-4 sm:top-6 sm:bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 flex rounded-3xl overflow-y-auto md:overflow-hidden glass-card shadow-2xl flex-col md:flex-row max-h-[94vh]"
             style={{
-              background: isDark ? 'rgba(15,15,22,0.92)' : 'rgba(255,255,255,0.95)',
+              background: isDark ? 'rgba(15,15,22,0.95)' : 'rgba(255,255,255,0.95)',
               border: `1px solid ${borderColor}`,
             }}
           >
             {/* Left Content Area (Main Details) */}
-            <div className="flex-1 p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col justify-between">
+            <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col justify-between">
               <div className="space-y-6">
                 {/* Task Title & Description */}
                 <div className="space-y-3">
@@ -583,10 +583,10 @@ export default function TaskDetailModal() {
 
             {/* Right Panel Area (Sidebar Details) */}
             <div
-              className="w-full md:w-[280px] p-6 space-y-5 flex-shrink-0"
+              className="w-full md:w-[280px] p-4 sm:p-6 space-y-4 sm:space-y-5 flex-shrink-0 border-t md:border-t-0 md:border-l"
               style={{
                 background: isDark ? 'rgba(20,20,30,0.4)' : 'rgba(240,238,252,0.4)',
-                borderLeft: `1px solid ${borderColor}`,
+                borderColor: borderColor,
               }}
             >
               {/* Status Selector */}

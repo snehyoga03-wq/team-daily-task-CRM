@@ -302,7 +302,7 @@ export default function FloatingAIAssistant() {
   return (
     <>
       {/* ─── 1. Floating Badge Button & Bubble ───────────────────────── */}
-      <div className={`fixed bottom-20 md:bottom-6 ${position === 'left' ? (sidebarCollapsed ? 'left-4 md:left-24 items-start' : 'left-4 md:left-[280px] items-start') : 'right-6 items-end'} z-50 flex flex-col gap-2 transition-all duration-300`}>
+      <div className={`fixed bottom-[72px] lg:bottom-6 ${position === 'left' ? (sidebarCollapsed ? 'left-4 lg:left-24 items-start' : 'left-4 lg:left-[280px] items-start') : 'right-4 lg:right-6 items-end'} z-40 flex flex-col gap-2 transition-all duration-300`}>
         {/* Cute Reminder Popup Bubble */}
         <AnimatePresence>
           {!isOpen && bubbleReminder && (
@@ -356,7 +356,7 @@ export default function FloatingAIAssistant() {
             setIsOpen(!isOpen);
             if (!isOpen) setIsBubbleDismissed(false);
           }}
-          className="w-14 h-14 rounded-full flex items-center justify-center relative cursor-pointer text-2xl shadow-2xl group transition-all"
+          className="w-12 h-12 lg:w-14 lg:h-14 rounded-full flex items-center justify-center relative cursor-pointer text-xl lg:text-2xl shadow-2xl group transition-all"
           style={{
             background: 'linear-gradient(135deg, #9333ea, #06b6d4)',
             boxShadow: isOpen
@@ -370,14 +370,14 @@ export default function FloatingAIAssistant() {
 
           {/* Icon */}
           {isOpen ? (
-            <span className="transform group-hover:scale-110 transition-transform text-2xl font-bold text-white">✕</span>
+            <span className="transform group-hover:scale-110 transition-transform text-xl lg:text-2xl font-bold text-white">✕</span>
           ) : (
             <CuteRobotMascot emotion={getBadgeEmotion()} size="md" isSpeaking={isTyping} className="transform group-hover:scale-110 transition-transform" />
           )}
 
           {/* Badge indicator count */}
           {!isOpen && (urgentTasks.length > 0 || pendingTasks.length > 0) && (
-            <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-rose-500 text-white text-[11px] font-extrabold flex items-center justify-center border-2 border-white dark:border-gray-900 shadow animate-bounce">
+            <span className="absolute -top-1 -right-1 w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-rose-500 text-white text-[10px] lg:text-[11px] font-extrabold flex items-center justify-center border-2 border-white dark:border-gray-900 shadow animate-bounce">
               {urgentTasks.length || pendingTasks.length}
             </span>
           )}
@@ -391,7 +391,7 @@ export default function FloatingAIAssistant() {
             initial={{ opacity: 0, y: 30, scale: 0.9, originX: position === 'left' ? 0 : 1, originY: 1 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.9, transition: { duration: 0.2 } }}
-            className={`fixed bottom-36 md:bottom-24 ${position === 'left' ? (sidebarCollapsed ? 'left-4 md:left-24' : 'left-4 md:left-[280px]') : 'right-4 md:right-6'} z-50 w-[92vw] sm:w-[380px] md:w-[420px] h-[520px] max-h-[80vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col border transition-all duration-300`}
+            className={`fixed bottom-[130px] lg:bottom-24 ${position === 'left' ? (sidebarCollapsed ? 'left-3 lg:left-24' : 'left-3 lg:left-[280px]') : 'right-3 lg:right-6'} z-50 w-[94vw] sm:w-[380px] md:w-[420px] h-[500px] max-h-[72vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col border transition-all duration-300`}
             style={{
               background: isDark ? 'rgba(18, 18, 26, 0.92)' : 'rgba(255, 255, 255, 0.92)',
               backdropFilter: 'blur(25px)',

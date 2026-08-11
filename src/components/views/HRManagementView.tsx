@@ -642,7 +642,7 @@ export default function HRManagementView() {
 
       {/* Tabs - Hidden when viewing individual employee details */}
       {!selectedEmployeeId && (
-        <div className="flex gap-2 border-b overflow-x-auto pb-1" style={{ borderColor }}>
+        <div className="flex gap-2 border-b overflow-x-auto no-scrollbar pb-1" style={{ borderColor }}>
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'employees', label: '👥 Employee Profiles' },

@@ -148,6 +148,10 @@ interface AppState {
   modalOpen: string | null;
   setModalOpen: (modal: string | null) => void;
 
+  // Mobile Drawer
+  mobileDrawerOpen: boolean;
+  setMobileDrawerOpen: (open: boolean) => void;
+
   // Selected Task
   selectedTaskId: string | null;
   setSelectedTaskId: (id: string | null) => void;
@@ -337,6 +341,10 @@ export const useAppStore = create<AppState>()(
       // Modal
       modalOpen: null,
       setModalOpen: (modal) => set({ modalOpen: modal }),
+
+      // Mobile Drawer
+      mobileDrawerOpen: false,
+      setMobileDrawerOpen: (open) => set({ mobileDrawerOpen: open }),
 
       // Selected Task
       selectedTaskId: null,

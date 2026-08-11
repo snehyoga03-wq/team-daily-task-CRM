@@ -118,15 +118,17 @@ export default function CalendarView() {
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={next} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0', color: textColor }}>→</motion.button>
         </div>
 
-        {/* Days Header */}
-        <div className="grid grid-cols-7 border-b" style={{ borderColor }}>
-          {daysOfWeek.map(d => (
-            <div key={d} className="text-center text-[11px] font-semibold py-3 uppercase tracking-wider border-r last:border-r-0" style={{ color: mutedColor, borderColor }}>{d}</div>
-          ))}
-        </div>
+        {/* Days Header & Calendar Grid Container */}
+        <div className="overflow-x-auto">
+          <div className="min-w-[580px]">
+            <div className="grid grid-cols-7 border-b" style={{ borderColor }}>
+              {daysOfWeek.map(d => (
+                <div key={d} className="text-center text-[11px] font-semibold py-3 uppercase tracking-wider border-r last:border-r-0" style={{ color: mutedColor, borderColor }}>{d}</div>
+              ))}
+            </div>
 
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7">
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7">
           {calendarDays.map((cell, i) => {
             const dayEvents = getEventsForDate(cell.year, cell.month, cell.day);
             const isToday = cell.day === today.getDate() && cell.month === today.getMonth() && cell.year === today.getFullYear();
@@ -174,6 +176,8 @@ export default function CalendarView() {
           })}
         </div>
       </div>
+    </div>
+  </div>
 
       {/* Upcoming Events */}
       <div className="glass-card p-5">

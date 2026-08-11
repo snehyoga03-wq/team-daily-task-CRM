@@ -568,8 +568,8 @@ export default function TasksView() {
                 <span className="text-sm font-bold" style={{ color: section.color }}>{section.label}</span>
                 <div className="flex-1 h-px" style={{ background: `${section.color}30` }} />
               </div>
-              <div className="glass-card overflow-hidden">
-                <div className="grid grid-cols-[1fr,100px,100px,120px,80px] gap-4 px-5 py-3 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
+              <div className="glass-card overflow-x-auto">
+                <div className="grid grid-cols-[1fr,100px,100px,120px,80px] min-w-[620px] gap-4 px-5 py-3 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
                   <span>Task</span><span>Status</span><span>Priority</span><span>Assignee</span><span>Due</span>
                 </div>
                 {section.tasks.filter(t => {
@@ -579,7 +579,7 @@ export default function TasksView() {
                   if (['urgent', 'high', 'medium', 'low'].includes(filter)) return t.priority === filter;
                   return true;
                 }).map(task => (
-                  <motion.div key={task.id} onClick={() => setSelectedTaskId(task.id)} whileHover={{ background: isDark ? 'rgba(139,92,246,0.04)' : 'rgba(139,92,246,0.03)' }} className="grid grid-cols-[1fr,100px,100px,120px,80px] gap-4 px-5 py-3 border-b items-center cursor-pointer" style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
+                  <motion.div key={task.id} onClick={() => setSelectedTaskId(task.id)} whileHover={{ background: isDark ? 'rgba(139,92,246,0.04)' : 'rgba(139,92,246,0.03)' }} className="grid grid-cols-[1fr,100px,100px,120px,80px] min-w-[620px] gap-4 px-5 py-3 border-b items-center cursor-pointer" style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
                     <div className="flex items-center gap-2">
                       {task.status !== 'done' && (
                         <button onClick={(e) => handleMarkComplete(task, e)} className="w-4 h-4 rounded-full border-2 border-gray-400 flex-shrink-0 hover:bg-green-500 hover:border-green-500 transition-colors" />

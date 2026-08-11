@@ -47,14 +47,14 @@ export default function LeadsView() {
       </div>
 
       {/* Table */}
-      <div className="glass-card overflow-hidden overflow-x-auto">
-        <div className="grid grid-cols-[1fr,120px,140px,100px,100px,80px] gap-4 px-5 py-3 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
+      <div className="glass-card overflow-x-auto shadow-sm">
+        <div className="grid grid-cols-[1fr,120px,140px,100px,100px,80px] min-w-[640px] gap-4 px-5 py-3 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
           <span>Lead / Contact</span><span>Status</span><span>Contact</span><span>Source</span><span>WhatsApp</span><span>Value</span>
         </div>
         {filtered.map((lead, i) => (
           <motion.div key={lead.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
             whileHover={{ background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}
-            className="grid grid-cols-[1fr,120px,140px,100px,100px,80px] gap-4 px-5 py-3 border-b items-center cursor-pointer"
+            className="grid grid-cols-[1fr,120px,140px,100px,100px,80px] min-w-[640px] gap-4 px-5 py-3 border-b items-center cursor-pointer"
             style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
             <div>
               <p className="text-sm font-medium" style={{ color: textColor }}>{lead.name}</p>

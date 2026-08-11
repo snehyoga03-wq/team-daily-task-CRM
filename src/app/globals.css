@@ -219,4 +219,37 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
   }
+
+  /* Mobile Responsive Utilities */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .table-mobile-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (max-width: 640px) {
+    .kanban-column {
+      min-width: 280px;
+      max-width: 100%;
+    }
+    .stat-card {
+      padding: 14px;
+    }
+    .btn-primary {
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+    .input-field {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+  }
 }
+

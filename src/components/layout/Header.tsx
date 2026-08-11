@@ -5,7 +5,7 @@ import { useAuthStore } from '@/lib/auth';
 import { motion } from 'framer-motion';
 
 export default function Header() {
-  const { theme, toggleTheme, searchOpen, setSearchOpen, setQuickAddOpen, notifications, toggleRightPanel } = useAppStore();
+  const { theme, toggleTheme, searchOpen, setSearchOpen, setQuickAddOpen, notifications, toggleRightPanel, setMobileDrawerOpen } = useAppStore();
   const { currentUser } = useAuthStore();
   const unreadCount = notifications.filter(n => !n.is_read).length;
   const isDark = theme === 'dark';
@@ -13,29 +13,46 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 border-b"
+      className="sticky top-0 z-30 flex items-center justify-between px-3 md:px-6 py-3 border-b gap-2"
       style={{
         background: isDark ? 'rgba(10,10,15,0.8)' : 'rgba(248,247,255,0.8)',
         borderColor: isDark ? '#2a2a3a' : '#e5e2f0',
         backdropFilter: 'blur(20px)',
       }}
     >
-      {/* Search */}
-      <motion.button
-        whileHover={{ scale: 1.01 }}
-        onClick={() => setSearchOpen(!searchOpen)}
-        className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm cursor-pointer flex-1 max-w-[200px] md:max-w-none md:min-w-[280px]"
-        style={{
-          background: isDark ? 'rgba(26,26,37,0.6)' : 'rgba(255,255,255,0.6)',
-          border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}`,
-          color: isDark ? '#71717a' : '#6b6880',
-        }}
-      >
-        <span>🔍</span>
-        <span className="hidden sm:inline truncate">Search tasks, leads, people...</span>
-        <span className="inline sm:hidden truncate">Search...</span>
-        <span className="hidden md:block ml-auto text-xs px-2 py-0.5 rounded-md" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0' }}>⌘K</span>
-      </motion.button>
+      <div className="flex items-center gap-2 flex-1 max-w-[240px] md:max-w-none">
+        {/* Mobile Menu Hamburger */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setMobileDrawerOpen(true)}
+          className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+          style={{
+            background: isDark ? 'rgba(26,26,37,0.6)' : 'rgba(255,255,255,0.6)',
+            border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}`,
+            color: isDark ? '#e4e4e7' : '#1e1b2e',
+          }}
+          title="Open Menu"
+        >
+          ☰
+        </motion.button>
+
+        {/* Search */}
+        <motion.button
+          whileHover={{ scale: 1.01 }}
+          onClick={() => setSearchOpen(!searchOpen)}
+          className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm cursor-pointer flex-1 min-w-[120px] md:min-w-[280px]"
+          style={{
+            background: isDark ? 'rgba(26,26,37,0.6)' : 'rgba(255,255,255,0.6)',
+            border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}`,
+            color: isDark ? '#71717a' : '#6b6880',
+          }}
+        >
+          <span>🔍</span>
+          <span className="hidden sm:inline truncate">Search tasks, leads, people...</span>
+          <span className="inline sm:hidden truncate text-xs">Search...</span>
+          <span className="hidden md:block ml-auto text-xs px-2 py-0.5 rounded-md" style={{ background: isDark ? '#2a2a3a' : '#e5e2f0' }}>⌘K</span>
+        </motion.button>
+      </div>
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 md:gap-3">
