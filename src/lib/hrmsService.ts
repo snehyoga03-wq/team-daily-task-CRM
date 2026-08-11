@@ -385,12 +385,17 @@ export async function createCompanyWfhDeclaration(declaration: Partial<DbCompany
 }
 
 export async function fetchCompanyWfhDeclarations() {
-  const { data, error } = await supabase
-    .from('company_wfh_declarations')
-    .select('*')
-    .order('date', { ascending: false });
-  if (error) throw error;
-  return data as DbCompanyWfh[];
+  try {
+    const { data, error } = await supabase
+      .from('company_wfh_declarations')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) throw error;
+    return data as DbCompanyWfh[];
+  } catch (err) {
+    console.error('Failed to fetch company WFH declarations:', err);
+    return [];
+  }
 }
 
 // ─── 8. MONTHLY EXPORTABLE REPORTS GENERATOR ──────────────────────────

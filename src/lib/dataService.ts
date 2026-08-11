@@ -754,9 +754,14 @@ export async function saveAppSettings(key: string, value: any) {
 // ─── HR MANAGEMENT ─────────────────────────────────────────────────
 
 export async function fetchHolidays() {
-  const { data, error } = await supabase.from('holidays').select('*').order('date', { ascending: true });
-  if (error) throw error;
-  return data;
+  try {
+    const { data, error } = await supabase.from('holidays').select('*').order('date', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching holidays:', err);
+    return [];
+  }
 }
 
 export async function addHoliday(holiday: { date: string; name: string; type: string }) {
@@ -771,9 +776,14 @@ export async function deleteHoliday(id: string) {
 }
 
 export async function fetchLeaveRequests() {
-  const { data, error } = await supabase.from('leave_requests').select('*, user:users(*)').order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
+  try {
+    const { data, error } = await supabase.from('leave_requests').select('*, user:users(*)').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching leave requests:', err);
+    return [];
+  }
 }
 
 export async function createLeaveRequest(request: any) {

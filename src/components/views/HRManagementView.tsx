@@ -122,7 +122,7 @@ export default function HRManagementView() {
   useEffect(() => {
     async function loadHRData() {
       try {
-        const [attendanceData, holidaysData, leaveData, policyData, companyWfhData, auditLogsData] = await Promise.all([
+        const results = await Promise.allSettled([
           dataService.fetchAllAttendanceData(),
           dataService.fetchHolidays(),
           dataService.fetchLeaveRequests(),
@@ -130,6 +130,14 @@ export default function HRManagementView() {
           dataService.fetchCompanyWfhDeclarations(),
           dataService.fetchHrmsAuditLogs(),
         ]);
+
+        const attendanceData = results[0].status === 'fulfilled' ? results[0].value : [];
+        const holidaysData = results[1].status === 'fulfilled' ? results[1].value : [];
+        const leaveData = results[2].status === 'fulfilled' ? results[2].value : [];
+        const policyData = results[3].status === 'fulfilled' ? results[3].value : dataService.DEFAULT_HR_POLICY;
+        const companyWfhData = results[4].status === 'fulfilled' ? results[4].value : [];
+        const auditLogsData = results[5].status === 'fulfilled' ? results[5].value : [];
+
         setAllAttendance(attendanceData || []);
         setHolidays(holidaysData || []);
         setLeaveRequests(leaveData || []);
