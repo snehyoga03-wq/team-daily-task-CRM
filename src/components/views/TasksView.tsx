@@ -3,10 +3,9 @@
 import { useAppStore, Task } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import * as dataService from '@/lib/dataService';
 import TaskDetailModal from '@/components/modals/TaskDetailModal';
-import GanttBoard from './GanttBoard';
 
 const statusConfig = {
   todo: { label: 'To Do', color: '#8b5cf6', icon: '📋' },
@@ -38,6 +37,7 @@ function buildSections(
   isAdmin: boolean,
   taskScope: string,
   selectedTeamId: string,
+  selectedMemberId: string = 'all',
 ): TaskSection[] {
   const todayStr = new Date().toISOString().slice(0, 10);
   const isToday = selectedDate === todayStr;
@@ -56,7 +56,11 @@ function buildSections(
       return t.assignee_id === userId;
     } else {
       if (selectedTeamId !== 'all') {
-        return t.team_id === selectedTeamId || (t as any).assignee?.team_id === selectedTeamId;
+        const matchesTeam = t.team_id === selectedTeamId || (t as any).assignee?.team_id === selectedTeamId;
+        if (!matchesTeam) return false;
+      }
+      if (selectedMemberId !== 'all') {
+        return t.assignee_id === selectedMemberId;
       }
       return true;
     }
@@ -209,6 +213,7 @@ function buildAllPendingSections(
   userId: string | undefined,
   taskScope: string,
   selectedTeamId: string,
+  selectedMemberId: string = 'all',
 ): TaskSection[] {
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -217,7 +222,14 @@ function buildAllPendingSections(
     if (t.is_recurring && !t.source_task_id) return false;
 
     if (taskScope === 'my_tasks') return t.assignee_id === userId;
-    if (selectedTeamId !== 'all') return t.team_id === selectedTeamId;
+
+    if (selectedTeamId !== 'all') {
+      const matchesTeam = t.team_id === selectedTeamId || (t as any).assignee?.team_id === selectedTeamId;
+      if (!matchesTeam) return false;
+    }
+    if (selectedMemberId !== 'all') {
+      return t.assignee_id === selectedMemberId;
+    }
     return true;
   });
 
@@ -275,7 +287,7 @@ function buildAllPendingSections(
 // ─── Component ──────────────────────────────────────────────────────
 
 export default function TasksView() {
-  const { theme, tasks, taskView, setTaskView, updateTask, setQuickAddOpen, setSelectedTaskId, teams } = useAppStore();
+  const { theme, tasks, updateTask, setQuickAddOpen, setSelectedTaskId, teams, teamMembers } = useAppStore();
   const { currentUser } = useAuthStore();
   const isAdmin = currentUser?.role === 'admin';
   const isDark = theme === 'dark';
@@ -285,12 +297,23 @@ export default function TasksView() {
   const [filter, setFilter] = useState<string>('all');
   const [taskScope, setTaskScope] = useState<'my_tasks' | 'team_tasks'>('my_tasks');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  // Compute available members based on selected team
+  const availableMembers = useMemo(() => {
+    if (selectedTeamId === 'all') {
+      return teamMembers || [];
+    }
+    return (teamMembers || []).filter(
+      (m) => m.team_id === selectedTeamId || (m as any).team?.id === selectedTeamId
+    );
+  }, [teamMembers, selectedTeamId]);
 
   // Build sections
   const sections = selectedDate
-    ? buildSections(tasks, selectedDate, currentUser?.id, isAdmin, taskScope, selectedTeamId)
-    : buildAllPendingSections(tasks, currentUser?.id, taskScope, selectedTeamId);
+    ? buildSections(tasks, selectedDate, currentUser?.id, isAdmin, taskScope, selectedTeamId, selectedMemberId)
+    : buildAllPendingSections(tasks, currentUser?.id, taskScope, selectedTeamId, selectedMemberId);
 
   // Flatten for kanban/list/gantt views
   const allSectionTasks = sections.flatMap((s) => s.tasks);
@@ -471,35 +494,42 @@ export default function TasksView() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {/* View Switcher */}
-          <div className="flex rounded-xl overflow-hidden" style={{ background: isDark ? 'rgba(26,26,37,0.6)' : 'rgba(255,255,255,0.6)', border: `1px solid ${isDark ? '#2a2a3a' : '#e5e2f0'}` }}>
-            {views.map(v => (
-              <button key={v} onClick={() => setTaskView(v)} className="px-4 py-2 text-xs font-medium transition-all" style={{
-                background: taskView === v ? 'rgba(139,92,246,0.15)' : 'transparent',
-                color: taskView === v ? '#a855f7' : mutedColor,
-              }}>
-                {v === 'kanban' ? '▦ Kanban' : v === 'list' ? '☰ List' : '📊 Gantt'}
-              </button>
-            ))}
-          </div>
-
-          {/* Scope Switcher */}
+          {/* Scope & Team & Member Switcher */}
           {isAdmin && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select value={taskScope} onChange={e => {
-                setTaskScope(e.target.value as 'my_tasks' | 'team_tasks');
+                const val = e.target.value as 'my_tasks' | 'team_tasks';
+                setTaskScope(val);
+                if (val === 'my_tasks') {
+                  setSelectedTeamId('all');
+                  setSelectedMemberId('all');
+                }
               }} className="input-field py-2 text-xs font-semibold" style={{ width: 'auto', background: isDark ? '#1e1b2e' : '#f8f7fa' }}>
                 <option value="my_tasks">👤 My Task</option>
                 <option value="team_tasks">👥 Select Team</option>
               </select>
 
               {taskScope === 'team_tasks' && (
-                <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} className="input-field py-2 text-xs" style={{ width: 'auto' }}>
-                  <option value="all">All Teams</option>
-                  {teams.map(team => (
-                    <option key={team.id} value={team.id}>{team.name}</option>
-                  ))}
-                </select>
+                <>
+                  <select value={selectedTeamId} onChange={e => {
+                    setSelectedTeamId(e.target.value);
+                    setSelectedMemberId('all');
+                  }} className="input-field py-2 text-xs font-semibold" style={{ width: 'auto' }}>
+                    <option value="all">🏢 All Teams</option>
+                    {teams.map(team => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+
+                  <select value={selectedMemberId} onChange={e => setSelectedMemberId(e.target.value)} className="input-field py-2 text-xs font-semibold" style={{ width: 'auto' }}>
+                    <option value="all">👤 All Members ({availableMembers.length})</option>
+                    {availableMembers.map(member => (
+                      <option key={member.id} value={member.id}>
+                        👤 {member.full_name || member.email}
+                      </option>
+                    ))}
+                  </select>
+                </>
               )}
             </div>
           )}
@@ -552,113 +582,57 @@ export default function TasksView() {
         </div>
       </div>
 
-      {/* Sectioned List View (Default for the new system) */}
-      {taskView === 'list' && (
-        <div className="space-y-6">
-          {sections.length === 0 && (
-            <div className="glass-card p-8 text-center">
-              <p className="text-sm" style={{ color: mutedColor }}>No tasks for this date. 🎉</p>
+      {/* Kanban Board */}
+      <div className="space-y-6">
+        {/* Section headers for Kanban */}
+        {sections.map((section) => (
+          <div key={section.key}>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <span>{section.icon}</span>
+              <span className="text-sm font-bold" style={{ color: section.color }}>{section.label}</span>
+              <div className="flex-1 h-px" style={{ background: `${section.color}30` }} />
             </div>
-          )}
-          {sections.map((section) => (
-            <div key={section.key}>
-              {/* Section Header */}
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <span>{section.icon}</span>
-                <span className="text-sm font-bold" style={{ color: section.color }}>{section.label}</span>
-                <div className="flex-1 h-px" style={{ background: `${section.color}30` }} />
-              </div>
-              <div className="glass-card overflow-x-auto">
-                <div className="grid grid-cols-[1fr,100px,100px,120px,80px] min-w-[620px] gap-4 px-5 py-3 border-b text-xs font-semibold" style={{ color: mutedColor, borderColor: isDark ? '#2a2a3a' : '#e5e2f0' }}>
-                  <span>Task</span><span>Status</span><span>Priority</span><span>Assignee</span><span>Due</span>
-                </div>
-                {section.tasks.filter(t => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 pb-4" style={{ minHeight: 120 }}>
+              {(Object.keys(statusConfig) as Task['status'][]).map(status => {
+                const config = statusConfig[status];
+                const columnTasks = section.tasks.filter(t => t.status === status).filter(t => {
                   if (filter === 'all') return true;
                   if (filter === 'planned') return t.tags?.some(tag => tag.toLowerCase() === 'planned');
                   if (filter === 'unplanned') return t.tags?.some(tag => tag.toLowerCase() === 'unplanned');
                   if (['urgent', 'high', 'medium', 'low'].includes(filter)) return t.priority === filter;
                   return true;
-                }).map(task => (
-                  <motion.div key={task.id} onClick={() => setSelectedTaskId(task.id)} whileHover={{ background: isDark ? 'rgba(139,92,246,0.04)' : 'rgba(139,92,246,0.03)' }} className="grid grid-cols-[1fr,100px,100px,120px,80px] min-w-[620px] gap-4 px-5 py-3 border-b items-center cursor-pointer" style={{ borderColor: isDark ? 'rgba(42,42,58,0.5)' : 'rgba(229,226,240,0.5)' }}>
-                    <div className="flex items-center gap-2">
-                      {task.status !== 'done' && (
-                        <button onClick={(e) => handleMarkComplete(task, e)} className="w-4 h-4 rounded-full border-2 border-gray-400 flex-shrink-0 hover:bg-green-500 hover:border-green-500 transition-colors" />
-                      )}
-                      {task.status === 'done' && (
-                        <div className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[8px] flex-shrink-0">✓</div>
-                      )}
-                      <span className={`text-sm ${task.status === 'done' ? 'line-through opacity-50' : ''}`} style={{ color: textColor }}>{task.title}</span>
-                    </div>
-                    <span className="text-[10px] px-2 py-1 rounded-full text-center font-medium" style={{ background: `${statusConfig[task.status].color}15`, color: statusConfig[task.status].color }}>{statusConfig[task.status].label}</span>
-                    <span className={`badge badge-${task.priority} text-center`}>{task.priority}</span>
-                    <span className="text-xs flex items-center gap-1" style={{ color: mutedColor }}>{task.assignee ? task.assignee.full_name?.split(' ')[0] : '—'}</span>
-                    <span className="text-[11px]" style={{ color: mutedColor }}>{task.due_date ? new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Kanban Board */}
-      {taskView === 'kanban' && (
-        <div className="space-y-6">
-          {/* Section headers for Kanban */}
-          {sections.map((section) => (
-            <div key={section.key}>
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <span>{section.icon}</span>
-                <span className="text-sm font-bold" style={{ color: section.color }}>{section.label}</span>
-                <div className="flex-1 h-px" style={{ background: `${section.color}30` }} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 pb-4" style={{ minHeight: 120 }}>
-                {(Object.keys(statusConfig) as Task['status'][]).map(status => {
-                  const config = statusConfig[status];
-                  const columnTasks = section.tasks.filter(t => t.status === status).filter(t => {
-                    if (filter === 'all') return true;
-                    if (filter === 'planned') return t.tags?.some(tag => tag.toLowerCase() === 'planned');
-                    if (filter === 'unplanned') return t.tags?.some(tag => tag.toLowerCase() === 'unplanned');
-                    if (['urgent', 'high', 'medium', 'low'].includes(filter)) return t.priority === filter;
-                    return true;
-                  });
-                  return (
-                    <div
-                      key={status}
-                      className="kanban-column"
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={() => handleDrop(status)}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{config.icon}</span>
-                          <span className="text-xs font-semibold" style={{ color: textColor }}>{config.label}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: `${config.color}20`, color: config.color }}>{columnTasks.length}</span>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <AnimatePresence>
-                          {columnTasks.map(task => renderTaskCard(task))}
-                        </AnimatePresence>
+                });
+                return (
+                  <div
+                    key={status}
+                    className="kanban-column"
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => handleDrop(status)}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{config.icon}</span>
+                        <span className="text-xs font-semibold" style={{ color: textColor }}>{config.label}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: `${config.color}20`, color: config.color }}>{columnTasks.length}</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="space-y-3">
+                      <AnimatePresence>
+                        {columnTasks.map(task => renderTaskCard(task))}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-          {sections.length === 0 && (
-            <div className="glass-card p-8 text-center">
-              <p className="text-sm" style={{ color: mutedColor }}>No tasks for this date. 🎉</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Gantt View */}
-      {taskView === 'gantt' && (
-        <GanttBoard filteredTasks={filteredTasks} />
-      )}
+          </div>
+        ))}
+        {sections.length === 0 && (
+          <div className="glass-card p-8 text-center">
+            <p className="text-sm" style={{ color: mutedColor }}>No tasks for this date. 🎉</p>
+          </div>
+        )}
+      </div>
 
       {/* Task Detail & Edit Modal */}
       <TaskDetailModal />

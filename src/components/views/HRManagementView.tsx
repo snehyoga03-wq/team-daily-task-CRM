@@ -29,6 +29,8 @@ const COLORS = {
   half_day: '#eab308',
   absent: '#f43f5e',
   leave: '#a855f7',
+  paid_leave: '#10b981',
+  unpaid_leave: '#ef4444',
   on_break: '#06b6d4',
   checked_out: '#3b82f6',
 };
@@ -54,6 +56,12 @@ export default function HRManagementView() {
   const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
 
   // Modals & Forms State
+  const [addHolidayModalOpen, setAddHolidayModalOpen] = useState(false);
+  const [newHolidayName, setNewHolidayName] = useState('');
+  const [newHolidayDate, setNewHolidayDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [newHolidayType, setNewHolidayType] = useState<'public' | 'restricted' | 'optional'>('public');
+  const [savingHoliday, setSavingHoliday] = useState(false);
+
   const [companyWfhModalOpen, setCompanyWfhModalOpen] = useState(false);
   const [wfhDate, setWfhDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [wfhReason, setWfhReason] = useState('Heavy Traffic');
@@ -427,6 +435,37 @@ export default function HRManagementView() {
       alert(err.message || 'Failed to declare Company WFH');
     } finally {
       setSavingWfh(false);
+    }
+  };
+
+  // Holiday Handlers
+  const handleAddHoliday = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHolidayName.trim() || !newHolidayDate) return;
+    setSavingHoliday(true);
+    try {
+      const added = await dataService.addHoliday({
+        name: newHolidayName.trim(),
+        date: newHolidayDate,
+        type: newHolidayType,
+      });
+      setHolidays(prev => [...prev, added].sort((a, b) => a.date.localeCompare(b.date)));
+      setNewHolidayName('');
+      setAddHolidayModalOpen(false);
+    } catch (err) {
+      console.error('Failed to add holiday', err);
+    } finally {
+      setSavingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this holiday?')) return;
+    try {
+      await dataService.deleteHoliday(id);
+      setHolidays(prev => prev.filter(h => h.id !== id));
+    } catch (err) {
+      console.error('Failed to delete holiday', err);
     }
   };
 
@@ -1340,6 +1379,8 @@ export default function HRManagementView() {
                       <option value="late">Late Today</option>
                       <option value="half_day">Half Day Today</option>
                       <option value="absent">Absent Today</option>
+                      <option value="paid_leave">Paid Leave Today</option>
+                      <option value="unpaid_leave">Unpaid Leave Today</option>
                       <option value="leave">On Leave Today</option>
                     </select>
                   </div>
@@ -1841,18 +1882,117 @@ export default function HRManagementView() {
 
             {/* 🎉 HOLIDAYS TAB */}
             {activeTab === 'holidays' && (
-              <div className="glass-card p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold" style={{ color: textColor }}>Company Holidays ({new Date().getFullYear()})</h2>
+              <div className="glass-card p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4" style={{ borderColor }}>
+                  <div>
+                    <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: textColor }}>
+                      <span>🎉</span> Company Holidays ({new Date().getFullYear()})
+                    </h2>
+                    <p className="text-xs mt-1" style={{ color: mutedColor }}>
+                      Official company public and restricted holidays list for year {new Date().getFullYear()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs px-3 py-1 rounded-full font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      Total: {holidays.length} Holidays
+                    </span>
+                    {currentUser?.role === 'admin' && (
+                      <button 
+                        onClick={() => setAddHolidayModalOpen(true)} 
+                        className="btn-primary text-xs flex items-center gap-1.5 px-4 py-2"
+                      >
+                        <span>＋</span> Add Holiday
+                      </button>
+                    )}
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {holidays.map(h => (
-                    <div key={h.id} className="p-4 rounded-xl border border-l-4" style={{ borderColor, borderLeftColor: h.type === 'public' ? '#3b82f6' : '#8b5cf6' }}>
-                      <p className="text-xs font-bold uppercase mb-1" style={{ color: h.type === 'public' ? '#3b82f6' : '#8b5cf6' }}>{h.type}</p>
-                      <h4 className="font-bold" style={{ color: textColor }}>{h.name}</h4>
-                      <p className="text-sm mt-1" style={{ color: mutedColor }}>{new Date(h.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                  {holidays.map(h => {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const todayStr = `${year}-${month}-${day}`;
+
+                    const tmrObj = new Date(now);
+                    tmrObj.setDate(tmrObj.getDate() + 1);
+                    const tmrYear = tmrObj.getFullYear();
+                    const tmrMonth = String(tmrObj.getMonth() + 1).padStart(2, '0');
+                    const tmrDay = String(tmrObj.getDate()).padStart(2, '0');
+                    const tomorrowStr = `${tmrYear}-${tmrMonth}-${tmrDay}`;
+
+                    const isToday = h.date === todayStr;
+                    const isTomorrow = h.date === tomorrowStr;
+                    const isPast = h.date < todayStr;
+                    const dateObj = new Date(h.date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+                    const highlightGreen = isToday || isTomorrow;
+
+                    return (
+                      <div 
+                        key={h.id} 
+                        className={`p-4 rounded-xl border border-l-4 transition-all hover:shadow-lg relative group ${highlightGreen ? 'ring-1 ring-emerald-500/30' : ''}`}
+                        style={{ 
+                          borderColor: highlightGreen ? 'rgba(16, 185, 129, 0.4)' : borderColor, 
+                          borderLeftColor: highlightGreen ? '#10b981' : h.type === 'public' ? '#3b82f6' : h.type === 'restricted' ? '#a855f7' : '#10b981',
+                          background: highlightGreen
+                            ? (isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.06)')
+                            : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)')
+                        }}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span 
+                            className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full" 
+                            style={{ 
+                              background: h.type === 'public' ? 'rgba(59,130,246,0.15)' : h.type === 'restricted' ? 'rgba(168,85,247,0.15)' : 'rgba(16,185,129,0.15)', 
+                              color: h.type === 'public' ? '#3b82f6' : h.type === 'restricted' ? '#a855f7' : '#10b981' 
+                            }}
+                          >
+                            {h.type === 'public' ? '🏢 Public Holiday' : h.type === 'restricted' ? '⭐ Restricted' : '🎈 Optional'}
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            {isToday ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse">🎉 TODAY</span>
+                            ) : isTomorrow ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 animate-pulse">✨ TOMORROW</span>
+                            ) : isPast ? (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-400">Passed</span>
+                            ) : (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Upcoming</span>
+                            )}
+
+                            {currentUser?.role === 'admin' && (
+                              <button 
+                                onClick={() => handleDeleteHoliday(h.id)} 
+                                className="text-red-400 hover:text-red-600 text-xs opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                title="Delete Holiday"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <h4 className="font-bold text-base mt-1" style={{ color: textColor }}>{h.name}</h4>
+                        
+                        <div className="flex items-center gap-1.5 mt-2 text-xs" style={{ color: highlightGreen ? '#10b981' : mutedColor }}>
+                          <span>📅</span>
+                          <span className={highlightGreen ? 'font-semibold' : ''}>{formattedDate}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {holidays.length === 0 && (
+                    <div className="col-span-full p-12 text-center glass-card">
+                      <p className="text-2xl mb-2">🎉</p>
+                      <p className="font-semibold text-sm" style={{ color: textColor }}>No company holidays listed yet.</p>
+                      <p className="text-xs mt-1" style={{ color: mutedColor }}>Click "Add Holiday" to add official holidays to the list.</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
@@ -2262,6 +2402,8 @@ export default function HRManagementView() {
                     <option value="half_day">🟡 Half Day</option>
                     <option value="late">🟠 Late</option>
                     <option value="absent">🔴 Absent</option>
+                    <option value="paid_leave">🌴 Paid Leave</option>
+                    <option value="unpaid_leave">🚫 Unpaid Leave</option>
                     <option value="leave">🏖️ On Leave</option>
                     <option value="on_break">☕ On Break</option>
                     <option value="checked_out">🔵 Checked Out</option>
@@ -2269,7 +2411,7 @@ export default function HRManagementView() {
                 </div>
 
                 {/* Check In & Check Out Times (only if not absent or on leave) */}
-                {editStatus !== 'absent' && editStatus !== 'leave' && (
+                {editStatus !== 'absent' && editStatus !== 'leave' && editStatus !== 'paid_leave' && editStatus !== 'unpaid_leave' && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Check In Time</label>
@@ -2327,6 +2469,90 @@ export default function HRManagementView() {
                       </>
                     ) : (
                       '💾 Save Attendance'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ➕ ADD HOLIDAY MODAL */}
+      <AnimatePresence>
+        {addHolidayModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass-card p-6 w-full max-w-md space-y-4"
+            >
+              <div className="flex items-center justify-between border-b pb-3" style={{ borderColor }}>
+                <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: textColor }}>
+                  <span>🎉</span> Add Company Holiday
+                </h3>
+                <button onClick={() => setAddHolidayModalOpen(false)} className="text-gray-400 hover:text-gray-200 text-sm">✕</button>
+              </div>
+
+              <form onSubmit={handleAddHoliday} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Holiday Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Independence Day"
+                    value={newHolidayName}
+                    onChange={e => setNewHolidayName(e.target.value)}
+                    className="input-field w-full text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newHolidayDate}
+                    onChange={e => setNewHolidayDate(e.target.value)}
+                    className="input-field w-full text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: textColor }}>Holiday Type</label>
+                  <select
+                    value={newHolidayType}
+                    onChange={e => setNewHolidayType(e.target.value as any)}
+                    className="input-field w-full text-xs"
+                  >
+                    <option value="public">🏢 Public Holiday (Office Closed)</option>
+                    <option value="restricted">⭐ Restricted / Optional Holiday</option>
+                    <option value="optional">🎈 Festival / Observance</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setAddHolidayModalOpen(false)}
+                    className="w-1/2 py-2.5 rounded-xl border text-xs font-semibold"
+                    style={{ borderColor, color: textColor }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingHoliday}
+                    className="w-1/2 btn-primary py-2.5 text-xs font-bold shadow-md flex items-center justify-center gap-2"
+                  >
+                    {savingHoliday ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      '＋ Add Holiday'
                     )}
                   </button>
                 </div>

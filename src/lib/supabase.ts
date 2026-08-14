@@ -160,7 +160,7 @@ export interface DbAttendance {
   date: string;
   check_in: string | null;
   check_out: string | null;
-  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'on_break' | 'checked_out' | 'wfh' | 'company_wfh' | 'weekly_off' | 'holiday';
+  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'paid_leave' | 'unpaid_leave' | 'on_break' | 'checked_out' | 'wfh' | 'company_wfh' | 'weekly_off' | 'holiday';
   fine_amount?: number;
   late_minutes?: number;
   ot_hours?: number;
